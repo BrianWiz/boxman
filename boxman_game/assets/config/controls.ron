@@ -1,0 +1,10 @@
+(
+    mouse_sensitivity: 0.001,
+    controls: (
+        move_forward: Keyboard(KeyW),
+        move_backward: Keyboard(KeyS),
+        move_left: Keyboard(KeyA),
+        move_right: Keyboard(KeyD),
+        jump: Keyboard(Space),
+    ),
+)

@@ -1,0 +1,11 @@
+[package]
+name = "boxman_server"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+boxman_shared = { path = "../boxman_shared" }
+bevy.workspace = true
+bevy_renet.workspace = true
+bincode.workspace = true
+serde.workspace = true

@@ -1,0 +1,5 @@
+(
+    minimum_correction_duration: 0.001,
+    maximum_correction_duration: 0.2,
+    correction_distance_scale: 0.1,
+)
