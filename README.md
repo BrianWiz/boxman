@@ -30,5 +30,7 @@ Right now, the server is a listen server, so technically doesn't need to be a se
 - In `boxman_game`, you will see `moveable_vis.rs`, this runs on a variable timestep, and interpolates the visual position of the moveable.
 - The reconciliation of the visual position is done in `boxman_game/src/net/snapshot.rs`.
 - The camera is attached to the visual position. See `player.rs` for more details.
-
-
+- Input is captured in both a fixed and variable timestep.
+    - The looking is done in variable timestep, and consumed in variable timestep.
+    - The movement is done in fixed timestep, and consumed in fixed timestep.
+        - I might do it in variable timestep in the future, then consume in fixed timestep.
