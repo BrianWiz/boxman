@@ -46,7 +46,7 @@ fn main() {
         MoveableSimulationPlugin,
         MoveableVisualsPlugin,
     ));
-    
+
     app.insert_resource(ServerPort(args.port));
     
     if args.server {

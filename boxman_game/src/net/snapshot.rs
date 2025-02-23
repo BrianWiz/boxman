@@ -164,7 +164,6 @@ fn reconcile_local_player_controller(
 
                         alter_player_controller_velocity(
                             &mut simulation, 
-                            Some(&mut transform), 
                             input, 
                             fixed_time.delta_secs(), 
                             PLAYER_CONTROLLER_SPEED, 
@@ -197,6 +196,7 @@ fn reconcile_local_player_controller(
                         correction_timer: Timer::new(Duration::from_secs_f32(correction_duration), TimerMode::Once),
                     });
 
+                    // Since we moved a bunch, its just safe to reset the rotation to the stored value.
                     transform.rotation = stored_rotation;
                 }
             }

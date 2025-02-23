@@ -4,6 +4,7 @@ use bevy::prelude::*;
 pub struct Snapshot {
     pub id: u64,
     pub controllers: Vec<PlayerControllerSnapshot>,
+    pub player_controller_deletions: Vec<u64>,
 }
 
 impl Snapshot {

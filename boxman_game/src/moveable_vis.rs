@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy_renet::renet::RenetServer;
 use boxman_shared::moveable_sim::{MoveableSimulation, MoveableVisuals};
 
 pub struct MoveableVisualsPlugin;
@@ -14,6 +15,7 @@ impl Plugin for MoveableVisualsPlugin {
 fn visuals_interpolation_system(
     time: Res<Time>,
     fixed_time: Res<Time<Fixed>>,
+    server: Option<Res<RenetServer>>,
     mut visuals_query: Query<&mut Transform, With<MoveableVisuals>>,
     mut simulations_query: Query<(&Transform, &mut MoveableSimulation), Without<MoveableVisuals>>,
 ) {
@@ -43,8 +45,17 @@ fn visuals_interpolation_system(
                     );
                 }
 
-                // This is fine because we update the simulation's rotation every Update frame already
-                visual_transform.rotation = simulation_transform.rotation;
+                if server.is_some() {
+                    // interpolate rotation on the server, because the server is receving inputs at a fixed tick.
+                    // And if the listen server is rendering higher than that, we need to keep it smooth.
+                    visual_transform.rotation = simulation.last_rotation.slerp(
+                        simulation_transform.rotation,
+                        fixed_time.overstep_fraction()
+                    );
+                } else {
+                    // This is fine because we update the simulation's rotation every Update frame already
+                    visual_transform.rotation = simulation_transform.rotation;
+                }
             }
         }
     }

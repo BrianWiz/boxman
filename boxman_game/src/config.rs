@@ -42,6 +42,7 @@ pub struct MultiplayerConfig {
     pub minimum_correction_duration: f32,
     pub maximum_correction_duration: f32,
     pub correction_distance_scale: f32,
+    pub server_rotation_interpolation_speed: f32,
 }
 
 impl Default for MultiplayerConfig {
@@ -50,6 +51,7 @@ impl Default for MultiplayerConfig {
             minimum_correction_duration: 0.001,
             maximum_correction_duration: 0.2,
             correction_distance_scale: 0.1,
+            server_rotation_interpolation_speed: 20.0,
         }
     }
 }

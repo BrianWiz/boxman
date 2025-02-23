@@ -84,7 +84,7 @@ fn input_capture_system(
             }
         },
         send_count: 0,
-        timestamp: time.elapsed_secs(),
+        client_timestamp: time.elapsed_secs(),
         post_move_velocity: Vec3::ZERO,
         post_move_position: Vec3::ZERO,
         post_move_grounded: false,
@@ -131,7 +131,6 @@ fn alter_velocity_system(
         if let Some(input) = player_inputs.inputs.last_mut() {
             alter_player_controller_velocity(
                 &mut player_controller, 
-                None, 
                 input, 
                 fixed_time.delta_secs(), 
                 PLAYER_CONTROLLER_SPEED, 
@@ -149,6 +148,9 @@ fn post_move_system(
     mut player_inputs: ResMut<PlayerControllerInputHistory>,
     player_controller: Query<(&MoveableSimulation, &Transform), With<LocalPlayerControllerSimulation>>,
 ) {
+    // We log these and store them on the input so that when we receive a snapshot,
+    // we can compare the post-move values to the values in the snapshot to determine
+    // if we should correct the client's movement.
     if let Some(input) = player_inputs.inputs.last_mut() {
         if let Ok((player_controller, player_transform)) = player_controller.get_single() {
             input.post_move_velocity = player_controller.velocity;

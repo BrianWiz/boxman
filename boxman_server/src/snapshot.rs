@@ -43,13 +43,14 @@ fn snapshot_system(
                     client_id: player_controller.client_id,
                     translation: transform.translation,
                     velocity: moveable_simulation.velocity,
-                    yaw: transform.rotation.y,
+                    yaw: transform.rotation.to_euler(EulerRot::YXZ).0,
                     pitch: 0.0,
                     grounded: moveable_simulation.grounded,
                 });
             }
             controllers
-        }
+        },
+        player_controller_deletions: Vec::new(),
     });
     snapshot_container.next_id += 1;
 
@@ -79,7 +80,7 @@ fn send_snapshot_diff_system(
 
             if let Some(last_acked_snapshot) = last_acked_snapshot {
                 let mut snapshot_diff = latest_snapshot.diff(last_acked_snapshot);
-                snapshot_diff.acked_input_id = player.last_processed_input_id;
+                snapshot_diff.acked_input_id = player.newest_processed_input_id;
                 match bincode::serialize(&ServerToClientMessage::SnapshotDiff(snapshot_diff)) {
                     Ok(serialized) => {
                         server.send_message(client_id, DefaultChannel::Unreliable, serialized);
@@ -90,7 +91,7 @@ fn send_snapshot_diff_system(
                 }
             } else {
                 let mut snapshot_diff = SnapshotDiff::from(latest_snapshot);
-                snapshot_diff.acked_input_id = player.last_processed_input_id;
+                snapshot_diff.acked_input_id = player.newest_processed_input_id;
                 match bincode::serialize(&ServerToClientMessage::SnapshotDiff(snapshot_diff)) {
                     Ok(serialized) => {
                         server.send_message(client_id, DefaultChannel::Unreliable, serialized);

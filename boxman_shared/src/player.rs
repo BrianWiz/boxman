@@ -32,7 +32,9 @@ pub struct PlayerInput {
     pub yaw: f32,
     pub wish_dir: Vec2,
     pub wish_jump: bool,
-    pub timestamp: f32,
+    pub client_timestamp: f32,
+
+    // Anything with a #[serde(skip)] attribute will not be sent over the network.
 
     #[serde(skip)]
     pub send_count: u32,
@@ -142,7 +144,6 @@ impl MoveableSimulation {
 
 pub fn alter_player_controller_velocity(
     simulation: &mut MoveableSimulation,
-    transform: Option<&mut Transform>,
     input: &PlayerInput,
     delta_secs: f32,
     speed: f32,
@@ -172,10 +173,6 @@ pub fn alter_player_controller_velocity(
 
     if input.wish_jump && simulation.grounded {
         simulation.velocity.y += jump_impulse;
-    }
-
-    if let Some(transform) = transform {
-        transform.rotation = rotation;
     }
 }
 

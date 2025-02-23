@@ -10,7 +10,7 @@ pub struct Player {
     pub client_id: u64,
     pub name: String,
     pub last_acked_snapshot_id: Option<u64>,
-    pub last_processed_input_id: Option<u32>,
+    pub newest_processed_input_id: Option<u32>,
     pub last_input: Option<PlayerInput>,
 }
 
@@ -52,7 +52,7 @@ fn connection_event_receiver_system(
                         client_id: *client_id,
                         name: format!("Player {}", client_id),
                         last_acked_snapshot_id: None,
-                        last_processed_input_id: None,
+                        newest_processed_input_id: None,
                         last_input: None,
                     },
                     PlayerInputQueue {
@@ -98,14 +98,17 @@ fn player_input_receiver_system(
 
         if let Some((mut input_queue, mut player)) = matching_player {
             // Don't process inputs older than what we've already processed
-            if let Some(last_processed_id) = player.last_processed_input_id {
-                if event.1.id <= last_processed_id {
-                    continue;
-                }
-            }
+            // @todo-brian: What we really should be doing here is 
+            // comparing to a small history of already consumed inputs.
+            // if let Some(last_processed_id) = player.last_processed_input_id {
+            //     if event.1.id <= last_processed_id {
+            //         continue;
+            //     }
+            // }
 
             input_queue.inputs.push(event.1.clone());
-            input_queue.inputs.sort_by_key(|input| std::cmp::Reverse(input.id));
+            input_queue.inputs.sort_by_key(|input| input.id);
+            input_queue.inputs.reverse();
 
             if let (Some(last_acked_snapshot_id), Some(pending_ack_snapshot_id)) = (player.last_acked_snapshot_id, event.1.snapshot_id) {
                 if pending_ack_snapshot_id > last_acked_snapshot_id {
@@ -126,9 +129,16 @@ fn player_input_consumer_system(
     fixed_time: Res<Time<Fixed>>,
 ) {
     for (mut input_queue, mut player) in players.iter_mut() {
-        let input = if input_queue.inputs.iter().len() >= 3 {
+        let input = if !input_queue.inputs.is_empty() {
             let input = input_queue.inputs.remove(0);
-            player.last_input = Some(input.clone());
+            // Only update last_input if this is a newer input
+            if let Some(last_input) = &player.last_input {
+                if input.id > last_input.id {
+                    player.last_input = Some(input.clone());
+                }
+            } else {
+                player.last_input = Some(input.clone());
+            }
             input
         } else if let Some(last_input) = &player.last_input {
             last_input.clone()
@@ -140,7 +150,6 @@ fn player_input_consumer_system(
             if controller.client_id == player.client_id {
                 alter_player_controller_velocity(
                     &mut simulation,
-                    Some(&mut transform),
                     &input,
                     fixed_time.delta_secs(),
                     PLAYER_CONTROLLER_SPEED,
@@ -151,12 +160,20 @@ fn player_input_consumer_system(
                     PLAYER_CONTROLLER_AIR_FRICTION,
                 );
 
-                if let Some(last_id) = player.last_processed_input_id {
+                if let Some(last_id) = player.newest_processed_input_id {
                     if input.id > last_id {
-                        player.last_processed_input_id = Some(input.id);
+                        player.newest_processed_input_id = Some(input.id);
+
+                        // use the rotation only from the newest input
+                        let (_, pitch, roll) = transform.rotation.to_euler(EulerRot::YXZ);
+                        transform.rotation = Quat::from_euler(EulerRot::YXZ, input.yaw, pitch, roll);
                     }
                 } else {
-                    player.last_processed_input_id = Some(input.id);
+                    player.newest_processed_input_id = Some(input.id);
+                    
+                    // use the rotation only from the newest input
+                    let (_, pitch, roll) = transform.rotation.to_euler(EulerRot::YXZ);
+                    transform.rotation = Quat::from_euler(EulerRot::YXZ, input.yaw, pitch, roll);
                 }
             }
         }
