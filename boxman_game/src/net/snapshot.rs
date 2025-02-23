@@ -5,7 +5,7 @@ use bevy::{prelude::*, utils::hashbrown::HashSet};
 use bevy_renet::netcode::NetcodeClientTransport;
 use boxman_shared::{
     moveable_sim::{move_simulation, MoveableCorrectionState, MoveableSimulation, MoveableVisuals}, 
-    player::{alter_player_controller_velocity, spawn_player_controller, LocalPlayerControllerSimulation, PlayerControllerSimulation, PLAYER_CONTROLLER_AIR_ACCEL, PLAYER_CONTROLLER_AIR_FRICTION, PLAYER_CONTROLLER_GROUND_ACCEL, PLAYER_CONTROLLER_GROUND_FRICTION, PLAYER_CONTROLLER_JUMP_IMPULSE, PLAYER_CONTROLLER_SPEED}, 
+    player::{alter_player_controller_velocity, despawn_player_controller, spawn_player_controller, LocalPlayerControllerSimulation, PlayerControllerSimulation, PLAYER_CONTROLLER_AIR_ACCEL, PLAYER_CONTROLLER_AIR_FRICTION, PLAYER_CONTROLLER_GROUND_ACCEL, PLAYER_CONTROLLER_GROUND_FRICTION, PLAYER_CONTROLLER_JUMP_IMPULSE, PLAYER_CONTROLLER_SPEED}, 
     snapshot::{PlayerControllerSnapshotDiff, SnapshotDiff}
 };
 
@@ -13,6 +13,9 @@ use crate::{config::MultiplayerConfig, player::PlayerControllerInputHistory};
 
 #[derive(Resource)]
 pub struct ReservedPlayerControllerIds(pub HashSet<u64>);
+
+#[derive(Resource)]
+pub struct DeletedPlayerControllerIds(pub HashSet<u64>);
 
 #[derive(Resource)]
 pub struct LastProcessedSnapshotId(pub Option<u64>);
@@ -26,6 +29,7 @@ impl Plugin for SnapshotPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(LastProcessedSnapshotId(None));
         app.insert_resource(ReservedPlayerControllerIds(HashSet::new()));
+        app.insert_resource(DeletedPlayerControllerIds(HashSet::new()));
         app.add_event::<SnapshotDiffEvent>();
         app.add_systems(
             FixedPostUpdate, 
@@ -41,11 +45,12 @@ fn snapshot_system(
     mut last_processed_snapshot_id: ResMut<LastProcessedSnapshotId>,
     mut snapshot_diff_events: EventReader<SnapshotDiffEvent>,
     visuals_query: Query<&Transform, (With<MoveableVisuals>, Without<LocalPlayerControllerSimulation>)>,
-    mut player_controllers: Query<(&mut Transform, &PlayerControllerSimulation, &mut MoveableSimulation), (Without<LocalPlayerControllerSimulation>, Without<MoveableVisuals>)>,
+    mut player_controllers: Query<(Entity, &mut Transform, &PlayerControllerSimulation, &mut MoveableSimulation), (Without<LocalPlayerControllerSimulation>, Without<MoveableVisuals>)>,
     mut local_player_controllers: Query<(Entity, &mut Transform, &mut MoveableSimulation), (With<LocalPlayerControllerSimulation>, Without<MoveableVisuals>)>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut reserved_player_controller_ids: ResMut<ReservedPlayerControllerIds>,
+    mut deleted_player_controller_ids: ResMut<DeletedPlayerControllerIds>,
     transport: Option<Res<NetcodeClientTransport>>,
     fixed_time: Res<Time<Fixed>>,
     mut player_inputs: ResMut<PlayerControllerInputHistory>,
@@ -83,9 +88,9 @@ fn snapshot_system(
                 }
                 
                 let existing_controller = player_controllers.iter_mut()
-                    .find(|(_, pc, _)| pc.client_id == player_snapshot_diff.client_id);
+                    .find(|(_, _, pc, _)| pc.client_id == player_snapshot_diff.client_id);
 
-                if let Some((mut transform, _, mut simulation)) = existing_controller {
+                if let Some((_, mut transform, _, mut simulation)) = existing_controller {
                     if let Some(position) = player_snapshot_diff.position {
                         transform.translation = position;
                     }
@@ -94,6 +99,9 @@ fn snapshot_system(
                     }
                 } else {
                     if reserved_player_controller_ids.0.contains(&player_snapshot_diff.client_id) {
+                        continue;
+                    }
+                    if deleted_player_controller_ids.0.contains(&player_snapshot_diff.client_id) {
                         continue;
                     }
                     if let Some(position) = player_snapshot_diff.position {
@@ -106,6 +114,16 @@ fn snapshot_system(
                             Some(&mut materials),
                         );
                         reserved_player_controller_ids.0.insert(player_snapshot_diff.client_id);
+                    }
+                }
+            }
+            
+            for deleted_player_controller_id in snapshot_diff.player_controller_deletions.iter() {
+                deleted_player_controller_ids.0.insert(*deleted_player_controller_id);
+                for (entity, _, player_controller, simulation) in player_controllers.iter_mut() {
+                    if player_controller.client_id == *deleted_player_controller_id {
+                        despawn_player_controller(&mut commands, entity, simulation.visuals());
+                        break;
                     }
                 }
             }

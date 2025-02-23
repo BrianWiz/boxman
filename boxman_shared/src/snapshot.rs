@@ -8,7 +8,7 @@ pub struct Snapshot {
 }
 
 impl Snapshot {
-    pub fn diff(&self, other: &Self) -> SnapshotDiff {
+    pub fn diff(&self, other: &Self, deleted_player_controller_ids: &Vec<u64>) -> SnapshotDiff {
         SnapshotDiff {
             id: self.id,
             acked_input_id: None, // Should be filled in after calling this function.
@@ -25,7 +25,8 @@ impl Snapshot {
                     }
                 }
                 out
-            }
+            },
+            player_controller_deletions: deleted_player_controller_ids.clone(),
         }
     }
 }
@@ -35,6 +36,7 @@ pub struct SnapshotDiff {
     pub id: u64,
     pub controllers: Vec<PlayerControllerSnapshotDiff>,
     pub acked_input_id: Option<u32>,
+    pub player_controller_deletions: Vec<u64>,
 }
 
 impl From<&Snapshot> for SnapshotDiff {
@@ -43,6 +45,7 @@ impl From<&Snapshot> for SnapshotDiff {
             id: snapshot.id,
             acked_input_id: None,
             controllers: snapshot.controllers.iter().map(|c| c.into()).collect(),
+            player_controller_deletions: snapshot.player_controller_deletions.clone(),
         }
     }
 }

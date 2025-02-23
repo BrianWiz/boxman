@@ -177,16 +177,12 @@ pub fn alter_player_controller_velocity(
 }
 
 pub fn despawn_player_controller(
-    client_id: u64,
     commands: &mut Commands,
-    player_controllers: &Query<(Entity, &MoveableSimulation, &PlayerControllerSimulation)>,
+    simulation_entity: Entity,
+    visuals_entity: Option<Entity>,
 ) {
-    for (entity, simulation, controller) in player_controllers.iter() {
-        if controller.client_id == client_id {
-            commands.entity(entity).despawn_recursive();
-            if let Some(visuals) = simulation.visuals() {
-                commands.entity(visuals).despawn_recursive();
-            }
-        }
+    commands.entity(simulation_entity).despawn_recursive();
+    if let Some(visuals_entity) = visuals_entity {
+        commands.entity(visuals_entity).despawn_recursive();
     }
 }

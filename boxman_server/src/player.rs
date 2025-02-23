@@ -22,11 +22,15 @@ pub struct PlayerInputQueue {
 #[derive(Event)]
 pub struct PlayerInputEvent(pub u64, pub PlayerInput);
 
+#[derive(Event)]
+pub struct DeletePlayerControllerEvent(pub u64);
+
 pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<PlayerInputEvent>();
+        app.add_event::<DeletePlayerControllerEvent>();
         app.add_systems(PostUpdate, (
             connection_event_receiver_system, 
             player_input_receiver_system,
@@ -41,7 +45,8 @@ fn connection_event_receiver_system(
     mut server_events: EventReader<ServerEvent>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    player_controllers: Query<(Entity,&MoveableSimulation, &PlayerControllerSimulation)>,
+    player_controllers: Query<(Entity, &MoveableSimulation, &PlayerControllerSimulation)>,
+    mut delete_player_controller_events: EventWriter<DeletePlayerControllerEvent>,
 ) {
     for event in server_events.read() {
         match event {
@@ -80,7 +85,16 @@ fn connection_event_receiver_system(
                         commands.entity(entity).despawn_recursive();
 
                         // Remove their controller
-                        despawn_player_controller(*client_id, &mut commands, &player_controllers);
+                        for (simulation_entity, simulation, player_controller) in player_controllers.iter() {
+                            if player_controller.client_id == *client_id {
+                                despawn_player_controller(&mut commands, simulation_entity, simulation.visuals());
+                                break;
+                            }
+                        }
+
+                        // Notify app that this player controller was deleted. 
+                        // Things like the snapshot system will need to know about this.
+                        delete_player_controller_events.send(DeletePlayerControllerEvent(*client_id));
                     }
                 }
             }
@@ -170,7 +184,7 @@ fn player_input_consumer_system(
                     }
                 } else {
                     player.newest_processed_input_id = Some(input.id);
-                    
+
                     // use the rotation only from the newest input
                     let (_, pitch, roll) = transform.rotation.to_euler(EulerRot::YXZ);
                     transform.rotation = Quat::from_euler(EulerRot::YXZ, input.yaw, pitch, roll);

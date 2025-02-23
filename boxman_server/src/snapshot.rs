@@ -3,7 +3,7 @@ use bevy_renet::renet::{DefaultChannel, RenetServer};
 use boxman_shared::{moveable_sim::MoveableSimulation, player::PlayerControllerSimulation, snapshot::{PlayerControllerSnapshot, Snapshot, SnapshotDiff}};
 use boxman_shared::protocol::ServerToClientMessage;
 
-use crate::player::Player;
+use crate::player::{DeletePlayerControllerEvent, Player};
 
 #[derive(Resource)]
 pub struct SnapshotContainer {
@@ -32,6 +32,7 @@ impl Plugin for SnapshotPlugin {
 fn snapshot_system(
     mut snapshot_container: ResMut<SnapshotContainer>,
     player_controllers: Query<(&PlayerControllerSimulation, &Transform, &MoveableSimulation)>,
+    mut delete_player_controller_events: EventReader<DeletePlayerControllerEvent>,
 ) {
     let id = snapshot_container.next_id;
     snapshot_container.snapshots.push(Snapshot {
@@ -50,7 +51,7 @@ fn snapshot_system(
             }
             controllers
         },
-        player_controller_deletions: Vec::new(),
+        player_controller_deletions: delete_player_controller_events.read().map(|e| e.0).collect(),
     });
     snapshot_container.next_id += 1;
 
@@ -79,7 +80,16 @@ fn send_snapshot_diff_system(
             };
 
             if let Some(last_acked_snapshot) = last_acked_snapshot {
-                let mut snapshot_diff = latest_snapshot.diff(last_acked_snapshot);
+
+                // bubble up any deleted player controllers between the last acked snapshot and the latest snapshot
+                let mut deleted_player_controller_ids = Vec::new();
+                for snapshot in snapshot_container.snapshots.iter() {
+                    if snapshot.id > last_acked_snapshot.id {
+                        deleted_player_controller_ids.extend(snapshot.player_controller_deletions.iter());
+                    }
+                }
+
+                let mut snapshot_diff = latest_snapshot.diff(last_acked_snapshot, &deleted_player_controller_ids);
                 snapshot_diff.acked_input_id = player.newest_processed_input_id;
                 match bincode::serialize(&ServerToClientMessage::SnapshotDiff(snapshot_diff)) {
                     Ok(serialized) => {
