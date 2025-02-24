@@ -1,7 +1,9 @@
+use std::time::Duration;
+
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::moveable_sim::{MoveableParams, MoveableSimulation};
+use crate::{moveable_sim::{MoveableEntities, MoveableParams, MoveableSimulation}, weapons::{Inventory, Weapon}};
 
 pub const PLAYER_CONTROLLER_SPEED: f32 = 8.0;
 pub const PLAYER_CONTROLLER_JUMP_IMPULSE: f32 = 3.8;
@@ -32,6 +34,8 @@ pub struct PlayerInput {
     pub yaw: f32,
     pub wish_dir: Vec2,
     pub wish_jump: bool,
+    pub wish_fire: bool,
+    pub active_weapon: u32,
     pub client_timestamp: f32,
 
     // Anything with a #[serde(skip)] attribute will not be sent over the network.
@@ -56,7 +60,7 @@ pub fn spawn_player_controller(
     local: bool,
     meshes: Option<&mut Assets<Mesh>>,
     materials: Option<&mut Assets<StandardMaterial>>,
-) {
+) -> MoveableEntities {
     let entities = MoveableSimulation::spawn(
         commands,
         if let Some(meshes) = meshes {
@@ -80,9 +84,21 @@ pub fn spawn_player_controller(
 
     // Simulation
     commands.entity(entities.simulation)
-        .insert(PlayerControllerSimulation {
-            client_id: client_id,
-        });
+        .insert((
+            PlayerControllerSimulation {
+                client_id: client_id,
+            },
+            Inventory {
+                active_weapon: 0,
+                weapons: vec![
+                    Weapon {
+                        key: 0,
+                        fire_timer: Timer::new(Duration::from_millis(100), TimerMode::Once),
+                        wish_fire: false,
+                    }
+                ],
+            },
+        ));
 
     if local {
         commands.entity(entities.simulation)
@@ -99,6 +115,8 @@ pub fn spawn_player_controller(
                 .insert(LocalPlayerControllerVisuals);
         }
     }
+
+    entities
 }
 
 impl MoveableSimulation {

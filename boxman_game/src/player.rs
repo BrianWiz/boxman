@@ -1,5 +1,5 @@
 use bevy::{input::mouse::MouseMotion, prelude::*};
-use boxman_shared::{moveable_sim::MoveableSimulation, player::{alter_player_controller_velocity, LocalPlayerControllerSimulation, LocalPlayerControllerVisuals, PlayerInput, PLAYER_CONTROLLER_AIR_ACCEL, PLAYER_CONTROLLER_AIR_FRICTION, PLAYER_CONTROLLER_GROUND_ACCEL, PLAYER_CONTROLLER_GROUND_FRICTION, PLAYER_CONTROLLER_JUMP_IMPULSE, PLAYER_CONTROLLER_SPEED}};
+use boxman_shared::{moveable_sim::MoveableSimulation, player::{alter_player_controller_velocity, LocalPlayerControllerSimulation, LocalPlayerControllerVisuals, PlayerInput, PLAYER_CONTROLLER_AIR_ACCEL, PLAYER_CONTROLLER_AIR_FRICTION, PLAYER_CONTROLLER_GROUND_ACCEL, PLAYER_CONTROLLER_GROUND_FRICTION, PLAYER_CONTROLLER_JUMP_IMPULSE, PLAYER_CONTROLLER_SPEED}, weapons::Inventory};
 
 use crate::net::snapshot::LastProcessedSnapshotId;
 use crate::config::ControlsConfig;
@@ -39,12 +39,14 @@ fn input_capture_system(
     time: Res<Time<Fixed>>,
     mut input_history: ResMut<PlayerControllerInputHistory>,
     snapshot_id: Option<ResMut<LastProcessedSnapshotId>>,
+    mouse_input: Res<ButtonInput<MouseButton>>,
     keyboard_input: Res<ButtonInput<KeyCode>>,
-    player_controller: Query<(Entity, &Transform, &MoveableSimulation), With<LocalPlayerControllerSimulation>>,
+    mut player_controller: Query<(Entity, &mut Inventory, &Transform, &MoveableSimulation), With<LocalPlayerControllerSimulation>>,
 ) {
     // We always send an input to the server regardless of whether we have a player controller or not.
     // So always create an input history entry.
-    let player_controller = player_controller.get_single();
+    let player_controller = player_controller.get_single_mut();
+    let wish_fire = mouse_input.pressed(MouseButton::Left);
     let id = input_history.next_input_id;
     input_history.inputs.push(PlayerInput {
         id,
@@ -54,7 +56,7 @@ fn input_capture_system(
             None
         },
         yaw: { 
-            if let Ok((_, player_transform, _)) = player_controller {
+            if let Ok((_, _, player_transform, _)) = player_controller {
                 player_transform.rotation.to_euler(EulerRot::YXZ).0
             } else {
                 0.0
@@ -77,12 +79,14 @@ fn input_capture_system(
             direction.normalize_or_zero()
         },
         wish_jump: {
-            if let Ok((_, _, moveable_simulation)) = player_controller {
+            if let Ok((_, _, _, moveable_simulation)) = player_controller {
                 keyboard_input.pressed(KeyCode::Space) && moveable_simulation.grounded
             } else {
                 false
             }
         },
+        active_weapon: 0,
+        wish_fire,
         send_count: 0,
         client_timestamp: time.elapsed_secs(),
         post_move_velocity: Vec3::ZERO,
@@ -94,6 +98,13 @@ fn input_capture_system(
     // Keep up to a second of input history, because we play these back when receiving a snapshot
     if input_history.inputs.len() > 64 {
         input_history.inputs.remove(0);
+    }
+
+    // handle weapon firing
+    if let Ok((_, mut inventory, _, _)) = player_controller {
+        let active_weapon_key = inventory.active_weapon as usize;
+        let weapon = &mut inventory.weapons[active_weapon_key];
+        weapon.wish_fire = wish_fire;
     }
 }
 

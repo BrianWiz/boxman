@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+bevy_config_stack.workspace = true
+bevy_renet.workspace = true
 bevy.workspace = true
 avian3d.workspace = true
 serde.workspace = true

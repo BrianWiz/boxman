@@ -1,4 +1,4 @@
-mod player;
+pub mod player;
 mod snapshot;
 use std::{error::Error, net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket}, time::SystemTime};
 
@@ -8,7 +8,7 @@ use bevy_renet::{
     renet::{ConnectionConfig, DefaultChannel, RenetServer}, 
     RenetServerPlugin
 };
-use boxman_shared::protocol::ClientToServerMessage;
+use boxman_shared::{protocol::ClientToServerMessage, utils::Server};
 use player::{PlayerInputEvent, PlayerPlugin};
 use snapshot::SnapshotPlugin;
 
@@ -25,6 +25,7 @@ impl Plugin for BoxmanServerPlugin {
 
         let server = RenetServer::new(ConnectionConfig::default());
         app.insert_resource(server);
+        app.insert_resource(Server);
         app.add_systems(Update, message_receiver_system);
     }
 }

@@ -9,3 +9,4 @@ bevy.workspace = true
 bevy_renet.workspace = true
 bincode.workspace = true
 serde.workspace = true
+rand.workspace = true

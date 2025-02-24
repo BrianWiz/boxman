@@ -2,8 +2,20 @@ use bevy::prelude::*;
 use bevy_renet::renet::ServerEvent;
 use boxman_shared::{
     moveable_sim::MoveableSimulation, 
-    player::{alter_player_controller_velocity, despawn_player_controller, spawn_player_controller, PlayerControllerSimulation, PlayerInput, PLAYER_CONTROLLER_AIR_ACCEL, PLAYER_CONTROLLER_AIR_FRICTION, PLAYER_CONTROLLER_GROUND_ACCEL, PLAYER_CONTROLLER_GROUND_FRICTION, PLAYER_CONTROLLER_JUMP_IMPULSE, PLAYER_CONTROLLER_SPEED}
+    player::{alter_player_controller_velocity, despawn_player_controller, spawn_player_controller, PlayerControllerSimulation, PlayerInput, PLAYER_CONTROLLER_AIR_ACCEL, PLAYER_CONTROLLER_AIR_FRICTION, PLAYER_CONTROLLER_GROUND_ACCEL, PLAYER_CONTROLLER_GROUND_FRICTION, PLAYER_CONTROLLER_JUMP_IMPULSE, PLAYER_CONTROLLER_SPEED}, weapons::Inventory
 };
+use rand::Rng;
+
+#[derive(Resource)]
+pub struct BotIdTracker {
+    pub next_bot_id: u64,
+}
+
+impl Default for BotIdTracker {
+    fn default() -> Self {
+        Self { next_bot_id: 9999 }
+    }
+}
 
 #[derive(Component)]
 pub struct Player {
@@ -25,17 +37,24 @@ pub struct PlayerInputEvent(pub u64, pub PlayerInput);
 #[derive(Event)]
 pub struct DeletePlayerControllerEvent(pub u64);
 
+#[derive(Component)]
+pub struct Bot;
+
 pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<PlayerInputEvent>();
         app.add_event::<DeletePlayerControllerEvent>();
+        app.insert_resource(BotIdTracker::default());
         app.add_systems(PostUpdate, (
             connection_event_receiver_system, 
             player_input_receiver_system,
         ));
-        app.add_systems(FixedPreUpdate, player_input_consumer_system);
+        app.add_systems(FixedPreUpdate, (
+            player_input_consumer_system, 
+            bot_input_system
+        ));
     }
 }
 
@@ -139,7 +158,7 @@ fn player_input_receiver_system(
 
 fn player_input_consumer_system(
     mut players: Query<(&mut PlayerInputQueue, &mut Player)>,
-    mut player_controllers: Query<(&mut MoveableSimulation, &mut Transform, &PlayerControllerSimulation)>,
+    mut player_controllers: Query<(&mut Inventory, &mut MoveableSimulation, &mut Transform, &PlayerControllerSimulation), Without<Bot>>,
     fixed_time: Res<Time<Fixed>>,
 ) {
     for (mut input_queue, mut player) in players.iter_mut() {
@@ -160,7 +179,7 @@ fn player_input_consumer_system(
             continue;
         };
 
-        for (mut simulation, mut transform, controller) in player_controllers.iter_mut() {
+        for (mut inventory, mut simulation, mut transform, controller) in player_controllers.iter_mut() {
             if controller.client_id == player.client_id {
                 alter_player_controller_velocity(
                     &mut simulation,
@@ -173,6 +192,10 @@ fn player_input_consumer_system(
                     PLAYER_CONTROLLER_GROUND_FRICTION,
                     PLAYER_CONTROLLER_AIR_FRICTION,
                 );
+
+                let active_weapon_key = inventory.active_weapon as usize;
+                let weapon = &mut inventory.weapons[active_weapon_key];
+                weapon.wish_fire = input.wish_fire;
 
                 if let Some(last_id) = player.newest_processed_input_id {
                     if input.id > last_id {
@@ -191,5 +214,65 @@ fn player_input_consumer_system(
                 }
             }
         }
+    }
+}
+
+pub fn spawn_bot(
+    bot_id_tracker: &mut BotIdTracker,
+    commands: &mut Commands, 
+    meshes: &mut Assets<Mesh>, 
+    materials: &mut Assets<StandardMaterial>,
+    initial_position: Vec3,
+) {
+    let client_id = bot_id_tracker.next_bot_id;
+    bot_id_tracker.next_bot_id += 1;
+    let entities = spawn_player_controller(
+        commands,
+        initial_position,
+        client_id,
+        false, // Not local
+        Some(meshes),
+        Some(materials),
+    );
+    commands.entity(entities.simulation).insert(Bot);
+}
+
+fn bot_input_system(
+    mut bot_query: Query<(&mut Inventory, &mut MoveableSimulation, &mut Transform, &PlayerControllerSimulation), With<Bot>>,
+    time: Res<Time<Fixed>>,
+) {
+    let mut rng = rand::rng();
+
+    for (mut inventory, mut simulation, _, _) in bot_query.iter_mut() {
+        let input = PlayerInput {
+            id: rng.random(),
+            snapshot_id: None,
+            yaw: rng.random_range(0.0..std::f32::consts::TAU),
+            wish_dir: Vec2::new(rng.random_range(-1.0..1.0), rng.random_range(-1.0..1.0)).normalize_or_zero(),
+            wish_jump: rng.random_bool(0.1),
+            wish_fire: rng.random_bool(0.1),
+            active_weapon: 0,
+            client_timestamp: time.elapsed_secs(),
+            send_count: 0,
+            post_move_velocity: Vec3::ZERO,
+            post_move_position: Vec3::ZERO,
+            post_move_grounded: false,
+        };
+
+        alter_player_controller_velocity(
+            &mut simulation,
+            &input,
+            time.delta_secs(),
+            PLAYER_CONTROLLER_SPEED,
+            PLAYER_CONTROLLER_JUMP_IMPULSE,
+            PLAYER_CONTROLLER_GROUND_ACCEL,
+            PLAYER_CONTROLLER_AIR_ACCEL,
+            PLAYER_CONTROLLER_GROUND_FRICTION,
+            PLAYER_CONTROLLER_AIR_FRICTION,
+        );
+
+        let active_weapon_key = inventory.active_weapon as usize;
+        let weapon = &mut inventory.weapons[active_weapon_key];
+        weapon.wish_fire = input.wish_fire;
     }
 }

@@ -7,8 +7,8 @@ use avian3d::{prelude::ColliderConstructor, PhysicsPlugins};
 use bevy::prelude::*;
 use bevy_renet::renet::RenetServer;
 use bevy_config_stack::prelude::*;
-use boxman_server::listen;
-use boxman_shared::moveable_sim::MoveableSimulationPlugin;
+use boxman_server::{listen, player::{spawn_bot, BotIdTracker}};
+use boxman_shared::{moveable_sim::MoveableSimulationPlugin, weapons::{WeaponsListConfig, WeaponsPlugin}};
 use moveable_vis::MoveableVisualsPlugin;
 use player::PlayerPlugin;
 use clap::Parser;
@@ -42,12 +42,17 @@ fn main() {
         PhysicsPlugins::default(),
         ConfigAssetLoaderPlugin::<ControlsConfig>::new("config/controls.ron"),
         ConfigAssetLoaderPlugin::<MultiplayerConfig>::new("config/multiplayer.ron"),
+        ConfigAssetLoaderPlugin::<WeaponsListConfig>::new("config/weapons.ron"),
         PlayerPlugin,
         MoveableSimulationPlugin,
         MoveableVisualsPlugin,
     ));
 
     app.insert_resource(ServerPort(args.port));
+
+    // let default_weapons_list_config = boxman_shared::weapons::WeaponConfig::default();
+    // let default_weapons_list_config_ron = ron::ser::to_string_pretty(&default_weapons_list_config, ron::ser::PrettyConfig::default()).unwrap();
+    // println!("{}", default_weapons_list_config_ron);
     
     if args.server {
         app.add_plugins(boxman_server::BoxmanServerPlugin);
@@ -60,6 +65,10 @@ fn main() {
         startup_system,
     ));
 
+    app.add_plugins((
+        WeaponsPlugin,
+    ));
+
     app.run();
 }
 
@@ -68,7 +77,8 @@ fn startup_system(
     server_port: Res<ServerPort>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    mut commands: Commands
+    mut commands: Commands,
+    mut bot_id_tracker: ResMut<BotIdTracker>,
 ) {
     // Light
     commands.spawn((
@@ -136,6 +146,13 @@ fn startup_system(
         if let Err(e) = listen(&mut commands, server_port.0) {
             error!("Failed to listen on port {}: {}", server_port.0, e);
         }
+
+        spawn_bot(
+            &mut bot_id_tracker,
+            &mut commands, 
+            &mut meshes, 
+            &mut materials, 
+            Vec3::new(0.0, 2.0, 0.0), 
+        );
     }
 }
-

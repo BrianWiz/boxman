@@ -12,7 +12,7 @@ use bevy_renet::{
     renet::{ConnectionConfig, DefaultChannel, RenetClient},
     RenetClientPlugin,
 };
-use boxman_shared::protocol::{ClientToServerMessage, ServerToClientMessage};
+use boxman_shared::{protocol::{ClientToServerMessage, ServerToClientMessage}, utils::Client};
 
 use crate::{player::PlayerControllerInputHistory, ServerIp, ServerPort};
 use snapshot::{SnapshotDiffEvent, SnapshotPlugin};
@@ -26,6 +26,7 @@ impl Plugin for BoxmanClientPlugin {
             NetcodeClientPlugin, 
             SnapshotPlugin
         ));
+        app.insert_resource(Client);
         app.add_systems(Startup, startup_system);
         app.add_systems(Update, (
             message_receiver_system,
