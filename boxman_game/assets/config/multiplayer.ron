@@ -1,6 +1,4 @@
 (
-    minimum_correction_duration: 0.001,
-    maximum_correction_duration: 0.2,
-    correction_distance_scale: 0.1,
-    server_rotation_interpolation_speed: 20.0,
+    moveable_correction_position_distance_threshold: 0.01,
+    moveable_correction_position_factor: 0.9,
 )

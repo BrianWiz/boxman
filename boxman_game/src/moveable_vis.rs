@@ -24,16 +24,19 @@ fn visuals_interpolation_system(
             if let Ok(mut visual_transform) = visuals_query.get_mut(visuals) {
                 let last_translation = simulation.last_translation;
                 // Are we smooth correcting from a server correction?
-                if let Some(ref mut correction) = simulation.correction_state {
-                    correction.correction_timer.tick(time.delta());
-                    let progress = correction.correction_timer.elapsed_secs() / correction.correction_timer.duration().as_secs_f32();
-                    let correction_target = correction.from.lerp(
+                if simulation.is_visually_correcting {
+                    let target = last_translation.lerp(
                         simulation_transform.translation,
-                        progress
+                        fixed_time.overstep_fraction()
                     );
-                    visual_transform.translation = correction_target;
-                    if correction.correction_timer.finished() {
-                        simulation.correction_state = None;
+                    
+                    visual_transform.translation = visual_transform.translation.lerp(
+                        target,
+                        fixed_time.overstep_fraction()
+                    );
+
+                    if visual_transform.translation.distance(target) < 0.01 {
+                        simulation.is_visually_correcting = false;
                     }
                 }
                 // Or are we just moving normally?

@@ -44,7 +44,6 @@ fn snapshot_system(
     spatial_query: SpatialQuery,
     mut last_processed_snapshot_id: ResMut<LastProcessedSnapshotId>,
     mut snapshot_diff_events: EventReader<SnapshotDiffEvent>,
-    visuals_query: Query<&Transform, (With<MoveableVisuals>, Without<LocalPlayerControllerSimulation>)>,
     mut player_controllers: Query<(Entity, &mut Transform, &PlayerControllerSimulation, &mut MoveableSimulation), (Without<LocalPlayerControllerSimulation>, Without<MoveableVisuals>)>,
     mut local_player_controllers: Query<(Entity, &mut Transform, &mut MoveableSimulation), (With<LocalPlayerControllerSimulation>, Without<MoveableVisuals>)>,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -79,7 +78,6 @@ fn snapshot_system(
                         &cfg,
                         &spatial_query,
                         &fixed_time,
-                        &visuals_query,
                         &mut local_player_controllers,
                         player_snapshot_diff,
                         &mut player_inputs,
@@ -135,88 +133,77 @@ fn reconcile_local_player_controller(
     cfg: &MultiplayerConfig,
     spatial_query: &SpatialQuery,
     fixed_time: &Time<Fixed>,
-    visuals_query: &Query<&Transform, (With<MoveableVisuals>, Without<LocalPlayerControllerSimulation>)>,
     player_controller_query: &mut Query<(Entity, &mut Transform, &mut MoveableSimulation), (With<LocalPlayerControllerSimulation>, Without<MoveableVisuals>)>,
     snapshot: &PlayerControllerSnapshotDiff,
     player_inputs: &mut PlayerControllerInputHistory,
     acked_input_id: Option<u32>,
 ) {
     if let Ok((entity, mut transform, mut simulation)) = player_controller_query.get_single_mut() {
-        if let Ok(visuals_transform) = visuals_query.get(entity) {
-            if let Some(position) = snapshot.position {
-                if let Some(acked_input_id) = acked_input_id {
+        if let Some(position) = snapshot.position {
+            if let Some(acked_input_id) = acked_input_id {
+                let acked_input = player_inputs.inputs.iter().find(|input| input.id == acked_input_id);
 
-                    let acked_input = player_inputs.inputs.iter().find(|input| input.id == acked_input_id);
-
-                    let mut correction_distance = 0.0;
-                    if let Some(acked_input) = acked_input {
-                        correction_distance = position.distance(acked_input.post_move_position);
-                        if correction_distance < 0.001 {
-                            return;
-                        }
-
-                        if snapshot.velocity.is_none() {
-                            simulation.velocity = acked_input.post_move_velocity;
-                        }
-
-                        if snapshot.grounded.is_none() {
-                            simulation.grounded = acked_input.post_move_grounded;
-                        }
+                if let Some(acked_input) = acked_input {
+                    let correction_distance = position.distance(acked_input.post_move_position);
+                    
+                    if correction_distance < cfg.moveable_correction_position_distance_threshold {
+                        return;
                     }
 
-                    transform.translation = position;
+                    simulation.is_visually_correcting = true;
 
-                    if let Some(velocity) = snapshot.velocity {
-                        simulation.velocity = velocity;
-                    }
-                    if let Some(grounded) = snapshot.grounded {
-                        simulation.grounded = grounded;
+                    if snapshot.velocity.is_none() {
+                        simulation.velocity = acked_input.post_move_velocity;
                     }
 
-                    let stored_rotation = transform.rotation;
-
-                    for input in player_inputs.inputs.iter_mut() {
-                        if input.id <= acked_input_id {
-                            continue;
-                        }
-
-                        alter_player_controller_velocity(
-                            &mut simulation, 
-                            input, 
-                            fixed_time.delta_secs(), 
-                            PLAYER_CONTROLLER_SPEED, 
-                            PLAYER_CONTROLLER_JUMP_IMPULSE, 
-                            PLAYER_CONTROLLER_GROUND_ACCEL,
-                            PLAYER_CONTROLLER_AIR_ACCEL,
-                            PLAYER_CONTROLLER_GROUND_FRICTION, 
-                            PLAYER_CONTROLLER_AIR_FRICTION,
-                        );
-
-                        move_simulation(
-                            &fixed_time,
-                            &spatial_query,
-                            &mut simulation,
-                            &mut transform,
-                            entity
-                        );
-                        
-                        input.post_move_velocity = simulation.velocity;
-                        input.post_move_position = transform.translation;
-                        input.post_move_grounded = simulation.grounded;
+                    if snapshot.grounded.is_none() {
+                        simulation.grounded = acked_input.post_move_grounded;
                     }
-
-                    // Compute correction duration based on distance
-                    let correction_duration = (correction_distance * cfg.correction_distance_scale)
-                        .clamp(cfg.minimum_correction_duration, cfg.maximum_correction_duration);
-
-                    simulation.correction_state = Some(MoveableCorrectionState {
-                        from: visuals_transform.translation,
-                        correction_timer: Timer::new(Duration::from_secs_f32(correction_duration), TimerMode::Once),
-                    });
-
-                    // Since we moved a bunch, its just safe to reset the rotation to the stored value.
-                    transform.rotation = stored_rotation;
                 }
+
+                transform.translation = position;
+
+                if let Some(velocity) = snapshot.velocity {
+                    simulation.velocity = velocity;
+                }
+                if let Some(grounded) = snapshot.grounded {
+                    simulation.grounded = grounded;
+                }
+
+                let stored_rotation = transform.rotation;
+
+                for input in player_inputs.inputs.iter_mut() {
+                    if input.id <= acked_input_id {
+                        continue;
+                    }
+
+                    alter_player_controller_velocity(
+                        &mut simulation, 
+                        input, 
+                        fixed_time.delta_secs(), 
+                        PLAYER_CONTROLLER_SPEED, 
+                        PLAYER_CONTROLLER_JUMP_IMPULSE, 
+                        PLAYER_CONTROLLER_GROUND_ACCEL,
+                        PLAYER_CONTROLLER_AIR_ACCEL,
+                        PLAYER_CONTROLLER_GROUND_FRICTION, 
+                        PLAYER_CONTROLLER_AIR_FRICTION,
+                    );
+
+                    move_simulation(
+                        &fixed_time,
+                        &spatial_query,
+                        &mut simulation,
+                        &mut transform,
+                        entity
+                    );
+                    
+                    input.post_move_velocity = simulation.velocity;
+                    input.post_move_position = transform.translation;
+                    input.post_move_grounded = simulation.grounded;
+                }
+
+                // Since we moved a bunch, its just safe to reset the rotation to the stored value.
+                transform.rotation = stored_rotation;
             }
         }
     }

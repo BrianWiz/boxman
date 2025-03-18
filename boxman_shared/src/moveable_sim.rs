@@ -25,7 +25,7 @@ pub struct MoveableVisuals;
 
 pub struct MoveableCorrectionState {
     pub from: Vec3,
-    pub correction_timer: Timer,
+    // pub correction_timer: Timer,
 }
 
 #[derive(Component)]
@@ -33,7 +33,7 @@ pub struct MoveableSimulation {
     visuals: Option<Entity>,
     pub velocity: Vec3,
     pub last_translation: Vec3,
-    pub correction_state: Option<MoveableCorrectionState>,
+    pub is_visually_correcting: bool,
     pub last_rotation: Quat,
     pub params: MoveableParams,
     pub grounded: bool,
@@ -67,7 +67,7 @@ impl MoveableSimulation {
                 last_translation: spawn_position,
                 last_rotation: Quat::IDENTITY,
                 params,
-                correction_state: None,
+                is_visually_correcting: false,
                 grounded: false,
             },
             Transform::from_translation(spawn_position),

@@ -1,4 +1,5 @@
 pub mod player;
+pub mod bots;
 mod snapshot;
 use std::{error::Error, net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket}, time::SystemTime};
 
@@ -8,6 +9,7 @@ use bevy_renet::{
     renet::{ConnectionConfig, DefaultChannel, RenetServer}, 
     RenetServerPlugin
 };
+use bots::BotsPlugin;
 use boxman_shared::{protocol::ClientToServerMessage, utils::Server};
 use player::{PlayerInputEvent, PlayerPlugin};
 use snapshot::SnapshotPlugin;
@@ -21,6 +23,7 @@ impl Plugin for BoxmanServerPlugin {
             NetcodeServerPlugin,
             SnapshotPlugin,
             PlayerPlugin,
+            BotsPlugin,
         ));
 
         let server = RenetServer::new(ConnectionConfig::default());

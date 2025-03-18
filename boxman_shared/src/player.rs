@@ -36,7 +36,7 @@ pub struct PlayerInput {
     pub wish_jump: bool,
     pub wish_fire: bool,
     pub active_weapon: u32,
-    pub client_timestamp: f32,
+    pub timestamp: f32,
 
     // Anything with a #[serde(skip)] attribute will not be sent over the network.
 

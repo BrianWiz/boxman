@@ -88,7 +88,7 @@ fn input_capture_system(
         active_weapon: 0,
         wish_fire,
         send_count: 0,
-        client_timestamp: time.elapsed_secs(),
+        timestamp: time.elapsed_secs(),
         post_move_velocity: Vec3::ZERO,
         post_move_position: Vec3::ZERO,
         post_move_grounded: false,

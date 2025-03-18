@@ -7,7 +7,7 @@ use avian3d::{prelude::ColliderConstructor, PhysicsPlugins};
 use bevy::prelude::*;
 use bevy_renet::renet::RenetServer;
 use bevy_config_stack::prelude::*;
-use boxman_server::{listen, player::{spawn_bot, BotIdTracker}};
+use boxman_server::{listen, bots::{spawn_bot, BotIdTracker}};
 use boxman_shared::{moveable_sim::MoveableSimulationPlugin, weapons::{WeaponsListConfig, WeaponsPlugin}};
 use moveable_vis::MoveableVisualsPlugin;
 use player::PlayerPlugin;
@@ -78,7 +78,7 @@ fn startup_system(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut commands: Commands,
-    mut bot_id_tracker: ResMut<BotIdTracker>,
+    bot_id_tracker: Option<ResMut<BotIdTracker>>,
 ) {
     // Light
     commands.spawn((
@@ -147,12 +147,14 @@ fn startup_system(
             error!("Failed to listen on port {}: {}", server_port.0, e);
         }
 
-        spawn_bot(
-            &mut bot_id_tracker,
-            &mut commands, 
-            &mut meshes, 
-            &mut materials, 
-            Vec3::new(0.0, 2.0, 0.0), 
-        );
+        if let Some(mut bot_id_tracker) = bot_id_tracker {
+            spawn_bot(
+                &mut bot_id_tracker,
+                &mut commands, 
+                &mut meshes, 
+                &mut materials, 
+                Vec3::new(0.0, 2.0, 0.0), 
+            );
+        }
     }
 }

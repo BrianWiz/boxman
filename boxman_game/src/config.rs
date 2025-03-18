@@ -39,19 +39,15 @@ impl Default for ControlsConfig {
 
 #[derive(Asset, TypePath, Debug, Resource, Serialize, Deserialize)]
 pub struct MultiplayerConfig {
-    pub minimum_correction_duration: f32,
-    pub maximum_correction_duration: f32,
-    pub correction_distance_scale: f32,
-    pub server_rotation_interpolation_speed: f32,
+    pub moveable_correction_position_distance_threshold: f32,
+    pub moveable_correction_position_factor: f32,
 }
 
 impl Default for MultiplayerConfig {
     fn default() -> Self {
         Self {
-            minimum_correction_duration: 0.001,
-            maximum_correction_duration: 0.2,
-            correction_distance_scale: 0.1,
-            server_rotation_interpolation_speed: 20.0,
+            moveable_correction_position_distance_threshold: 0.01,
+            moveable_correction_position_factor: 0.9,
         }
     }
 }
