@@ -2,12 +2,14 @@ use bevy::prelude::*;
 use bevy_renet::renet::RenetServer;
 use boxman_shared::moveable_sim::{MoveableSimulation, MoveableVisuals};
 
+use crate::config::MultiplayerConfig;
+
 pub struct MoveableVisualsPlugin;
 
 impl Plugin for MoveableVisualsPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Update, 
-            visuals_interpolation_system
+            visuals_interpolation_system.run_if(resource_exists::<MultiplayerConfig>)
         );
     }
 }
@@ -16,6 +18,7 @@ fn visuals_interpolation_system(
     time: Res<Time>,
     fixed_time: Res<Time<Fixed>>,
     server: Option<Res<RenetServer>>,
+    cfg: Res<MultiplayerConfig>,
     mut visuals_query: Query<&mut Transform, With<MoveableVisuals>>,
     mut simulations_query: Query<(&Transform, &mut MoveableSimulation), Without<MoveableVisuals>>,
 ) {
@@ -30,12 +33,16 @@ fn visuals_interpolation_system(
                         fixed_time.overstep_fraction()
                     );
                     
+                    let current_distance = visual_transform.translation.distance(target);
+                    let framerate_adjusted_factor = cfg.moveable_correction_position_factor.powf(time.delta_secs() * 60.0);
+                    let lerp_amount = (framerate_adjusted_factor * current_distance).min(current_distance);
+                    
                     visual_transform.translation = visual_transform.translation.lerp(
                         target,
-                        fixed_time.overstep_fraction()
+                        lerp_amount / current_distance
                     );
 
-                    if visual_transform.translation.distance(target) < 0.01 {
+                    if current_distance < 0.01 {
                         simulation.is_visually_correcting = false;
                     }
                 }

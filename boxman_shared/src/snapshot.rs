@@ -3,19 +3,18 @@ use bevy::prelude::*;
 #[derive(Debug)]
 pub struct Snapshot {
     pub id: u64,
-    pub controllers: Vec<PlayerControllerSnapshot>,
-    pub player_controller_deletions: Vec<u64>,
+    pub character_snapshots: Vec<CharacterSnapshot>,
 }
 
 impl Snapshot {
-    pub fn diff(&self, other: &Self, deleted_player_controller_ids: &Vec<u64>) -> SnapshotDiff {
+    pub fn diff(&self, other: &Self) -> SnapshotDiff {
         SnapshotDiff {
             id: self.id,
             acked_input_id: None, // Should be filled in after calling this function.
-            controllers: {
+            character_snapshots: {
                 let mut out = Vec::new();
-                for controller in self.controllers.iter() {
-                    let other_controller = other.controllers.iter().find(|c| c.client_id == controller.client_id);
+                for controller in self.character_snapshots.iter() {
+                    let other_controller = other.character_snapshots.iter().find(|c| c.client_id == controller.client_id);
                     if let Some(other_controller) = other_controller {
                         if let Some(diff) = controller.diff(other_controller) {
                             out.push(diff);
@@ -26,7 +25,6 @@ impl Snapshot {
                 }
                 out
             },
-            player_controller_deletions: deleted_player_controller_ids.clone(),
         }
     }
 }
@@ -34,9 +32,8 @@ impl Snapshot {
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct SnapshotDiff {
     pub id: u64,
-    pub controllers: Vec<PlayerControllerSnapshotDiff>,
+    pub character_snapshots: Vec<CharacterSnapshotDiff>,
     pub acked_input_id: Option<u32>,
-    pub player_controller_deletions: Vec<u64>,
 }
 
 impl From<&Snapshot> for SnapshotDiff {
@@ -44,14 +41,13 @@ impl From<&Snapshot> for SnapshotDiff {
         SnapshotDiff {
             id: snapshot.id,
             acked_input_id: None,
-            controllers: snapshot.controllers.iter().map(|c| c.into()).collect(),
-            player_controller_deletions: snapshot.player_controller_deletions.clone(),
+            character_snapshots: snapshot.character_snapshots.iter().map(|c| c.into()).collect(),
         }
     }
 }
 
 #[derive(Debug)]
-pub struct PlayerControllerSnapshot {
+pub struct CharacterSnapshot {
     pub client_id: u64,
     pub translation: Vec3,
     pub velocity: Vec3,
@@ -60,9 +56,9 @@ pub struct PlayerControllerSnapshot {
     pub grounded: bool,
 }
 
-impl PlayerControllerSnapshot {
-    pub fn diff(&self, other: &Self) -> Option<PlayerControllerSnapshotDiff> {
-        let out = PlayerControllerSnapshotDiff {
+impl CharacterSnapshot {
+    pub fn diff(&self, other: &Self) -> Option<CharacterSnapshotDiff> {
+        let out = CharacterSnapshotDiff {
             client_id: self.client_id,
             position: if self.translation != other.translation {
                 Some(self.translation)
@@ -104,7 +100,7 @@ impl PlayerControllerSnapshot {
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
-pub struct PlayerControllerSnapshotDiff {
+pub struct CharacterSnapshotDiff {
     pub client_id: u64,
     pub position: Option<Vec3>,
     pub velocity: Option<Vec3>,
@@ -113,8 +109,8 @@ pub struct PlayerControllerSnapshotDiff {
     pub grounded: Option<bool>,
 }
 
-impl From<&PlayerControllerSnapshot> for PlayerControllerSnapshotDiff     {
-    fn from(snapshot: &PlayerControllerSnapshot) -> Self {
+impl From<&CharacterSnapshot> for CharacterSnapshotDiff     {
+    fn from(snapshot: &CharacterSnapshot) -> Self {
         Self {
             client_id: snapshot.client_id,
             position: Some(snapshot.translation),

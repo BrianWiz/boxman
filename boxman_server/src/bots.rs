@@ -4,7 +4,7 @@ use bevy::{prelude::*, utils::HashMap};
 use bevy_renet::renet::ServerEvent;
 use boxman_shared::{
     moveable_sim::MoveableSimulation, 
-    player::{alter_player_controller_velocity, despawn_player_controller, spawn_player_controller, PlayerControllerSimulation, PlayerInput, PLAYER_CONTROLLER_AIR_ACCEL, PLAYER_CONTROLLER_AIR_FRICTION, PLAYER_CONTROLLER_GROUND_ACCEL, PLAYER_CONTROLLER_GROUND_FRICTION, PLAYER_CONTROLLER_JUMP_IMPULSE, PLAYER_CONTROLLER_SPEED}, weapons::Inventory
+    player::{alter_character_velocity, despawn_character, spawn_character, CharacterSimulation, PlayerInput, PLAYER_CONTROLLER_AIR_ACCEL, PLAYER_CONTROLLER_AIR_FRICTION, PLAYER_CONTROLLER_GROUND_ACCEL, PLAYER_CONTROLLER_GROUND_FRICTION, PLAYER_CONTROLLER_JUMP_IMPULSE, PLAYER_CONTROLLER_SPEED}, weapons::Inventory
 };
 use rand::Rng;
 
@@ -52,7 +52,7 @@ pub fn spawn_bot(
 ) {
     let client_id = bot_id_tracker.next_bot_id;
     bot_id_tracker.next_bot_id += 1;
-    let entities = spawn_player_controller(
+    let entities = spawn_character(
         commands,
         initial_position,
         client_id,
@@ -70,7 +70,7 @@ pub fn spawn_bot(
 
 fn target_seeker_system(
     mut bot_query: Query<(Entity, &mut Bot)>,
-    player_controllers: Query<&PlayerControllerSimulation>,
+    player_controllers: Query<&CharacterSimulation>,
 ) {
     for (entity, mut bot) in bot_query.iter_mut() {
 
@@ -93,8 +93,8 @@ fn target_seeker_system(
 /// System to handle bot movement and actions
 fn bot_movement_system(
     time: Res<Time<Fixed>>,
-    mut bot_query: Query<(Entity, &mut Bot, &mut Inventory, &mut MoveableSimulation), With<PlayerControllerSimulation>>,
-    mut transforms: Query<(Entity, &mut Transform), With<PlayerControllerSimulation>>,
+    mut bot_query: Query<(Entity, &mut Bot, &mut Inventory, &mut MoveableSimulation), With<CharacterSimulation>>,
+    mut transforms: Query<(Entity, &mut Transform), With<CharacterSimulation>>,
 ) {
     let mut rng = rand::rng();
     
@@ -166,7 +166,7 @@ fn bot_movement_system(
                 create_random_input(&mut rng, &bot_transform, active_weapon_key, time.elapsed_secs())
             };
             
-            alter_player_controller_velocity(
+            alter_character_velocity(
                 &mut simulation,
                 &input,
                 time.delta_secs(),

@@ -4,7 +4,7 @@ use bevy::{prelude::*, utils::hashbrown::HashMap};
 use bevy_config_stack::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::{player::LocalPlayerControllerSimulation, types::{MaterialKind, MeshConfig, MeshKind}, utils::Server};
+use crate::{player::LocalCharacterSimulation, types::{MaterialKind, MeshConfig, MeshKind}, utils::GameServer};
 
 pub type WeaponKey = u32;
 
@@ -125,10 +125,10 @@ fn cache_weapons_assets_system(
 
 fn update_weapons_system(
     cfg: Res<WeaponsListConfig>,
-    mut local_inventories: Query<&mut Inventory, With<LocalPlayerControllerSimulation>>,
-    mut inventories: Query<&mut Inventory, Without<LocalPlayerControllerSimulation>>,
+    mut local_inventories: Query<&mut Inventory, With<LocalCharacterSimulation>>,
+    mut inventories: Query<&mut Inventory, Without<LocalCharacterSimulation>>,
     fixed_time: Res<Time<Fixed>>,
-    server: Option<Res<Server>>,
+    server: Option<Res<GameServer>>,
 ) {
     if server.is_some() {
         for mut inventory in inventories.iter_mut() {

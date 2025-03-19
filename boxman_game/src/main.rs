@@ -1,7 +1,7 @@
 mod moveable_vis;
 mod player;
 mod config;
-mod net;
+mod client;
 
 use avian3d::{prelude::ColliderConstructor, PhysicsPlugins};
 use bevy::prelude::*;
@@ -55,10 +55,10 @@ fn main() {
     // println!("{}", default_weapons_list_config_ron);
     
     if args.server {
-        app.add_plugins(boxman_server::BoxmanServerPlugin);
+        app.add_plugins(boxman_server::GameServerPlugin);
     } else {
         app.insert_resource(ServerIp(args.server_ip.clone()));
-        app.add_plugins(net::BoxmanClientPlugin);
+        app.add_plugins(client::GameClientPlugin);
     }
 
     app.add_systems(Startup, (

@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use bevy_renet::renet::ServerEvent;
 use boxman_shared::{
     moveable_sim::MoveableSimulation, 
-    player::{alter_player_controller_velocity, despawn_player_controller, spawn_player_controller, PlayerControllerSimulation, PlayerInput, PLAYER_CONTROLLER_AIR_ACCEL, PLAYER_CONTROLLER_AIR_FRICTION, PLAYER_CONTROLLER_GROUND_ACCEL, PLAYER_CONTROLLER_GROUND_FRICTION, PLAYER_CONTROLLER_JUMP_IMPULSE, PLAYER_CONTROLLER_SPEED}, weapons::Inventory
+    player::{alter_character_velocity, despawn_character, spawn_character, CharacterSimulation, PlayerInput, PLAYER_CONTROLLER_AIR_ACCEL, PLAYER_CONTROLLER_AIR_FRICTION, PLAYER_CONTROLLER_GROUND_ACCEL, PLAYER_CONTROLLER_GROUND_FRICTION, PLAYER_CONTROLLER_JUMP_IMPULSE, PLAYER_CONTROLLER_SPEED}, weapons::Inventory
 };
 use rand::Rng;
 
@@ -50,7 +50,7 @@ fn connection_event_receiver_system(
     mut server_events: EventReader<ServerEvent>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    player_controllers: Query<(Entity, &MoveableSimulation, &PlayerControllerSimulation)>,
+    player_controllers: Query<(Entity, &MoveableSimulation, &CharacterSimulation)>,
     mut delete_player_controller_events: EventWriter<DeletePlayerControllerEvent>,
 ) {
     for event in server_events.read() {
@@ -72,7 +72,7 @@ fn connection_event_receiver_system(
 
                 // spawn a player controller
                 // @todo: support headless mode
-                spawn_player_controller(
+                spawn_character(
                     &mut commands, 
                     Vec3::new(0.0, 2.0, 0.0), // position
                     *client_id, 
@@ -92,7 +92,7 @@ fn connection_event_receiver_system(
                         // Remove their controller
                         for (simulation_entity, simulation, player_controller) in player_controllers.iter() {
                             if player_controller.client_id == *client_id {
-                                despawn_player_controller(&mut commands, simulation_entity, simulation.visuals());
+                                despawn_character(&mut commands, simulation_entity, simulation.visuals());
                                 break;
                             }
                         }
@@ -144,7 +144,7 @@ fn player_input_receiver_system(
 
 fn player_input_consumer_system(
     mut players: Query<(&mut PlayerInputQueue, &mut Player)>,
-    mut player_controllers: Query<(&mut Inventory, &mut MoveableSimulation, &mut Transform, &PlayerControllerSimulation), Without<Bot>>,
+    mut player_controllers: Query<(&mut Inventory, &mut MoveableSimulation, &mut Transform, &CharacterSimulation), Without<Bot>>,
     fixed_time: Res<Time<Fixed>>,
 ) {
     for (mut input_queue, mut player) in players.iter_mut() {
@@ -167,7 +167,7 @@ fn player_input_consumer_system(
 
         for (mut inventory, mut simulation, mut transform, controller) in player_controllers.iter_mut() {
             if controller.client_id == player.client_id {
-                alter_player_controller_velocity(
+                alter_character_velocity(
                     &mut simulation,
                     &input,
                     fixed_time.delta_secs(),

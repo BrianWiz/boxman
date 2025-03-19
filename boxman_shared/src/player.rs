@@ -14,18 +14,18 @@ pub const PLAYER_CONTROLLER_AIR_ACCEL: f32 = 2.0;
 pub const PLAYER_CONTROLLER_AIR_SPEED_MULTIPLIER: f32 = 0.7;
 
 #[derive(Component)]
-pub struct LocalPlayerControllerSimulation;
+pub struct LocalCharacterSimulation;
 
 #[derive(Component)]
-pub struct LocalPlayerControllerVisuals;
+pub struct LocalCharacterVisuals;
 
 #[derive(Component)]
-pub struct PlayerControllerSimulation {
+pub struct CharacterSimulation {
     pub client_id: u64,
 }
 
 #[derive(Component)]
-pub struct PlayerControllerVisuals;
+pub struct CharacterVisuals;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlayerInput {
@@ -53,7 +53,7 @@ pub struct PlayerInput {
     pub post_move_grounded: bool,
 }
 
-pub fn spawn_player_controller(
+pub fn spawn_character(
     commands: &mut Commands,
     position: Vec3,
     client_id: u64,
@@ -85,7 +85,7 @@ pub fn spawn_player_controller(
     // Simulation
     commands.entity(entities.simulation)
         .insert((
-            PlayerControllerSimulation {
+            CharacterSimulation {
                 client_id: client_id,
             },
             Inventory {
@@ -102,17 +102,17 @@ pub fn spawn_player_controller(
 
     if local {
         commands.entity(entities.simulation)
-            .insert(LocalPlayerControllerSimulation);
+            .insert(LocalCharacterSimulation);
     }
 
     // Visuals
     if let Some(visuals) = entities.visuals {
         commands.entity(visuals)
-            .insert(PlayerControllerVisuals);
+            .insert(CharacterVisuals);
 
         if local {
             commands.entity(visuals)
-                .insert(LocalPlayerControllerVisuals);
+                .insert(LocalCharacterVisuals);
         }
     }
 
@@ -160,7 +160,7 @@ impl MoveableSimulation {
     }
 }
 
-pub fn alter_player_controller_velocity(
+pub fn alter_character_velocity(
     simulation: &mut MoveableSimulation,
     input: &PlayerInput,
     delta_secs: f32,
@@ -194,7 +194,7 @@ pub fn alter_player_controller_velocity(
     }
 }
 
-pub fn despawn_player_controller(
+pub fn despawn_character(
     commands: &mut Commands,
     simulation_entity: Entity,
     visuals_entity: Option<Entity>,
