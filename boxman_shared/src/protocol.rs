@@ -1,4 +1,3 @@
-use bevy::math::Vec3;
 use serde::{Deserialize, Serialize};
 
 use crate::{character::{PlayerInput, CharacterDespawnEvent, CharacterSpawnEvent}, snapshot::SnapshotDiff};

@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use bevy_renet::renet::{DefaultChannel, RenetServer, ServerEvent};
 use boxman_shared::{
-    character::{alter_character_velocity, CharacterSimulation, PlayerInput, PLAYER_CONTROLLER_AIR_ACCEL, PLAYER_CONTROLLER_AIR_FRICTION, PLAYER_CONTROLLER_GROUND_ACCEL, PLAYER_CONTROLLER_GROUND_FRICTION, PLAYER_CONTROLLER_JUMP_IMPULSE, PLAYER_CONTROLLER_SPEED}, moveable_sim::MoveableSimulation, prelude::{CharacterDespawnEvent, CharacterSpawnEvent, ServerToClientMessage}
+    character::{alter_character_velocity, PlayerInput}, data::CharacterConfig, moveable_sim::MoveableSimulation, prelude::{Character, CharacterDespawnEvent, CharacterSpawnEvent, ServerToClientMessage}
 };
 
 #[derive(Component)]
@@ -31,7 +31,7 @@ impl Plugin for PlayerPlugin {
             player_input_receiver_system,
         ));
         app.add_systems(FixedPreUpdate, (
-            player_input_consumer_system, 
+            player_input_consumer_system.run_if(resource_exists::<CharacterConfig>), 
         ));
     }
 }
@@ -43,7 +43,7 @@ fn connection_event_receiver_system(
     mut server_events: EventReader<ServerEvent>,
     mut character_spawn_events: EventWriter<CharacterSpawnEvent>,
     mut character_despawn_events: EventWriter<CharacterDespawnEvent>,
-    characters: Query<(Entity, &Transform, &CharacterSimulation)>,
+    characters: Query<(Entity, &Transform, &Character)>,
 ) {
     for event in server_events.read() {
         match event {
@@ -171,8 +171,9 @@ fn player_input_receiver_system(
 }
 
 fn player_input_consumer_system(
+    character_config: Res<CharacterConfig>,
     mut players: Query<(&mut PlayerInputQueue, &mut Player)>,
-    mut player_controllers: Query<(&mut MoveableSimulation, &mut Transform, &CharacterSimulation)>,
+    mut characters: Query<(&mut MoveableSimulation, &mut Transform, &Character)>,
     fixed_time: Res<Time<Fixed>>,
 ) {
     for (mut input_queue, mut player) in players.iter_mut() {
@@ -193,18 +194,15 @@ fn player_input_consumer_system(
             continue;
         };
 
-        for (mut simulation, mut transform, controller) in player_controllers.iter_mut() {
+        for (mut simulation, mut transform, controller) in characters.iter_mut() {
             if controller.client_id == player.client_id {
                 alter_character_velocity(
                     &mut simulation,
                     &input,
                     fixed_time.delta_secs(),
-                    PLAYER_CONTROLLER_SPEED,
-                    PLAYER_CONTROLLER_JUMP_IMPULSE,
-                    PLAYER_CONTROLLER_GROUND_ACCEL,
-                    PLAYER_CONTROLLER_AIR_ACCEL,
-                    PLAYER_CONTROLLER_GROUND_FRICTION,
-                    PLAYER_CONTROLLER_AIR_FRICTION,
+                    character_config.speed,
+                    character_config.acceleration,
+                    character_config.friction,
                 );
 
                 if let Some(last_id) = player.newest_processed_input_id {

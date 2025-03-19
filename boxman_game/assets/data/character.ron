@@ -1,0 +1,5 @@
+(
+    speed: 100.0,
+    acceleration: 20.0,
+    friction: 400.0,
+)

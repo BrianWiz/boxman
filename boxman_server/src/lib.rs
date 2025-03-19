@@ -5,10 +5,10 @@ use std::{error::Error, net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket}, time::Sy
 use bevy::prelude::*;
 use bevy_renet::{
     netcode::{NetcodeServerPlugin, NetcodeServerTransport, ServerAuthentication, ServerConfig}, 
-    renet::{ConnectionConfig, DefaultChannel, RenetServer, ServerEvent}, 
+    renet::{ConnectionConfig, DefaultChannel, RenetServer}, 
     RenetServerPlugin
 };
-use boxman_shared::{character::CharacterSimulation, prelude::{CharacterDespawnEvent, CharacterSpawnEvent}, protocol::{ClientToServerMessage, ServerToClientMessage}, utils::{GameServer, ServerPort}};
+use boxman_shared::{ protocol::ClientToServerMessage, utils::{GameServer, ServerPort}};
 use player::{PlayerInputEvent, PlayerPlugin};
 use snapshot::SnapshotPlugin;
 

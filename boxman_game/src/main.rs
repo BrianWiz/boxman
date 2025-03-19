@@ -1,17 +1,15 @@
 mod moveable_vis;
 mod player;
-mod config;
 mod client;
-mod character;
 
 use avian3d::{prelude::ColliderConstructor, PhysicsPlugins};
 use bevy::prelude::*;
 use bevy_config_stack::prelude::*;
 use boxman_shared::{utils::{ServerIp, ServerPort}, SharedPlugin};
-use character::CharacterPlugin;
+use moveable_vis::MoveableVisualsPlugin;
 use player::PlayerPlugin;
 use clap::Parser;
-use config::{MultiplayerConfig, ControlsConfig};
+use boxman_shared::data::{MultiplayerConfig, CharacterConfig};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None, name = "Boxman", author = "Riverside Games")]
@@ -33,11 +31,11 @@ fn main() {
     app.add_plugins((
         DefaultPlugins,
         PhysicsPlugins::default(),
-        ConfigAssetLoaderPlugin::<ControlsConfig>::new("config/controls.ron"),
-        ConfigAssetLoaderPlugin::<MultiplayerConfig>::new("config/multiplayer.ron"),
+        ConfigAssetLoaderPlugin::<CharacterConfig>::new("data/character.ron"),
+        ConfigAssetLoaderPlugin::<MultiplayerConfig>::new("data/multiplayer.ron"),
         PlayerPlugin,
         SharedPlugin,
-        CharacterPlugin,
+        MoveableVisualsPlugin,
     ));
 
     app.insert_resource(ServerPort(args.port));

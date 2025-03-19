@@ -4,6 +4,7 @@ pub mod character;
 pub mod snapshot;
 pub mod types;
 pub mod utils;
+pub mod data;
 
 pub mod prelude {
     pub use super::*;
@@ -13,6 +14,7 @@ pub mod prelude {
     pub use snapshot::*;
     pub use types::*;
     pub use utils::*;
+    pub use data::*;
 }
 
 use bevy::prelude::*;

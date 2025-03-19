@@ -3,14 +3,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::moveable_sim::{MoveableParams, MoveableSimulation};
 
-pub const PLAYER_CONTROLLER_SPEED: f32 = 8.0;
-pub const PLAYER_CONTROLLER_JUMP_IMPULSE: f32 = 3.8;
-pub const PLAYER_CONTROLLER_GROUND_FRICTION: f32 = 14.0;
-pub const PLAYER_CONTROLLER_AIR_FRICTION: f32 = 2.0;
-pub const PLAYER_CONTROLLER_GROUND_ACCEL: f32 = 10.0;
-pub const PLAYER_CONTROLLER_AIR_ACCEL: f32 = 2.0;
-pub const PLAYER_CONTROLLER_AIR_SPEED_MULTIPLIER: f32 = 0.7;
-
 pub struct CharacterPlugin;
 
 impl Plugin for CharacterPlugin {
@@ -43,7 +35,7 @@ fn spawn_character_system(
                     max_slope_angle: Some(44.0),
                 },
             },
-            CharacterSimulation {
+            Character {
                 client_id: event.client_id,
             },
             Transform::from_translation(event.position),
@@ -54,12 +46,21 @@ fn spawn_character_system(
 fn despawn_character_system(
     mut commands: Commands,
     mut character_despawn_events: EventReader<CharacterDespawnEvent>,
-    character_simulation_query: Query<(Entity, &CharacterSimulation)>,
+    visuals_query: Query<Entity, With<CharacterVisuals>>,
+    character_query: Query<(Entity, &Character)>,
 ) {
     for event in character_despawn_events.read() {
-        for (simulation_entity, character) in character_simulation_query.iter() {
+        let all_visuals = visuals_query.iter().collect::<Vec<_>>();
+        'outer: for (simulation_entity, character) in character_query.iter() {
             if character.client_id == event.client_id {
+                'inner: for visuals_entity in all_visuals.iter() {
+                    if *visuals_entity == simulation_entity {
+                        commands.entity(*visuals_entity).despawn_recursive();
+                        break 'inner;
+                    }
+                }
                 commands.entity(simulation_entity).despawn_recursive();
+                break 'outer;
             }
         }
     }
@@ -78,13 +79,14 @@ pub struct CharacterDespawnEvent {
 }
 
 #[derive(Component)]
-pub struct LocalCharacterSimulation;
+pub struct LocalCharacter;
 
 #[derive(Component)]
 pub struct LocalCharacterVisuals;
 
+
 #[derive(Component)]
-pub struct CharacterSimulation {
+pub struct Character {
     pub client_id: u64,
 }
 
@@ -163,11 +165,8 @@ pub fn alter_character_velocity(
     input: &PlayerInput,
     delta_secs: f32,
     speed: f32,
-    jump_impulse: f32,
-    ground_accel: f32,
-    air_accel: f32,
-    ground_friction: f32,
-    air_friction: f32,
+    acceleration: f32,
+    friction: f32,
 ) {
     let rotation = Quat::from_rotation_y(input.yaw);
     let wish_dir = (rotation * Vec3::new(input.wish_dir.x, 0.0, input.wish_dir.y)).normalize_or_zero();
@@ -175,7 +174,7 @@ pub fn alter_character_velocity(
     simulation.velocity = MoveableSimulation::apply_friction(
         simulation.velocity,
         simulation.velocity.length(),
-        if simulation.grounded { ground_friction } else { air_friction },
+        friction * delta_secs,
         delta_secs
     );
 
@@ -183,11 +182,7 @@ pub fn alter_character_velocity(
         wish_dir,
         speed,
         simulation.velocity.dot(wish_dir),
-        if simulation.grounded { ground_accel } else { air_accel },
+        acceleration * delta_secs,
         delta_secs
     );
-
-    if input.wish_jump && simulation.grounded {
-        simulation.velocity.y += jump_impulse;
-    }
 }

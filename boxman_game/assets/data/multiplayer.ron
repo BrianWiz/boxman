@@ -1,0 +1,8 @@
+(
+    visual_smooth_min_threshold: 0.1,
+    visual_smooth_range: 0.4,
+    visual_smooth_factor_min: 0.98,
+    visual_smooth_factor_max: 0.90,
+    visual_smooth_speed_multiplier: 15.0,
+    visual_snap_threshold: 0.005,
+)

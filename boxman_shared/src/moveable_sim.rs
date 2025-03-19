@@ -31,7 +31,9 @@ pub struct MoveableParams {
 }
 
 #[derive(Component)]
-pub struct MoveableVisuals;
+pub struct MoveableVisuals {
+    pub simulation_entity: Entity,
+}
 
 pub struct MoveableCorrectionState {
     pub from: Vec3,

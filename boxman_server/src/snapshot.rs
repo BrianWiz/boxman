@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use bevy_renet::renet::{DefaultChannel, RenetServer};
-use boxman_shared::{moveable_sim::MoveableSimulation, character::CharacterSimulation, snapshot::{CharacterSnapshot, Snapshot, SnapshotDiff}};
+use boxman_shared::{moveable_sim::MoveableSimulation, character::Character, snapshot::{CharacterSnapshot, Snapshot, SnapshotDiff}};
 use boxman_shared::protocol::ServerToClientMessage;
 
 use crate::player::Player;
@@ -31,16 +31,16 @@ impl Plugin for SnapshotPlugin {
 
 fn snapshot_system(
     mut snapshot_container: ResMut<SnapshotContainer>,
-    player_controllers: Query<(&CharacterSimulation, &Transform, &MoveableSimulation)>,
+    characters: Query<(&Character, &Transform, &MoveableSimulation)>,
 ) {
     let id = snapshot_container.next_id;
     snapshot_container.snapshots.push(Snapshot {
         id,
         character_snapshots: {
-            let mut controllers = Vec::new();
-            for (player_controller, transform, moveable_simulation) in player_controllers.iter() {
-                controllers.push(CharacterSnapshot {
-                    client_id: player_controller.client_id,
+            let mut c = Vec::new();
+            for (character, transform, moveable_simulation) in characters.iter() {
+                c.push(CharacterSnapshot {
+                    client_id: character.client_id,
                     translation: transform.translation,
                     velocity: moveable_simulation.velocity,
                     yaw: transform.rotation.to_euler(EulerRot::YXZ).0,
@@ -48,7 +48,7 @@ fn snapshot_system(
                     grounded: moveable_simulation.grounded,
                 });
             }
-            controllers
+            c
         },
     });
     snapshot_container.next_id += 1;

@@ -1,15 +1,13 @@
-use std::time::Duration;
-
 use avian3d::prelude::SpatialQuery;
-use bevy::{prelude::*, utils::hashbrown::HashSet};
+use bevy::prelude::*;
 use bevy_renet::netcode::NetcodeClientTransport;
 use boxman_shared::{
-    moveable_sim::{move_simulation, MoveableCorrectionState, MoveableSimulation, MoveableVisuals}, 
-    character::{alter_character_velocity, LocalCharacterSimulation, CharacterSimulation, PLAYER_CONTROLLER_AIR_ACCEL, PLAYER_CONTROLLER_AIR_FRICTION, PLAYER_CONTROLLER_GROUND_ACCEL, PLAYER_CONTROLLER_GROUND_FRICTION, PLAYER_CONTROLLER_JUMP_IMPULSE, PLAYER_CONTROLLER_SPEED}, 
+    moveable_sim::{move_simulation, MoveableSimulation, MoveableVisuals}, 
+    character::{alter_character_velocity, LocalCharacter, Character}, 
     snapshot::{CharacterSnapshotDiff, SnapshotDiff}
 };
-
-use crate::{config::MultiplayerConfig, player::InputHistory};
+use boxman_shared::data::{MultiplayerConfig, CharacterConfig};
+use crate::player::InputHistory;
 
 #[derive(Resource)]
 pub struct LastProcessedSnapshotId(pub Option<u64>);
@@ -25,18 +23,21 @@ impl Plugin for SnapshotPlugin {
         app.add_event::<SnapshotDiffEvent>();
         app.add_systems(
             FixedPostUpdate, 
-            snapshot_system.run_if(resource_exists::<MultiplayerConfig>)
+            snapshot_system
+                .run_if(resource_exists::<MultiplayerConfig>)
+                .run_if(resource_exists::<CharacterConfig>)
         );
     }
 }
 
 fn snapshot_system(
     cfg: Res<MultiplayerConfig>,
+    character_config: Res<CharacterConfig>,
     spatial_query: SpatialQuery,
     mut last_processed_snapshot_id: ResMut<LastProcessedSnapshotId>,
     mut snapshot_diff_events: EventReader<SnapshotDiffEvent>,
-    mut characters: Query<(Entity, &mut Transform, &CharacterSimulation, &mut MoveableSimulation), (Without<LocalCharacterSimulation>, Without<MoveableVisuals>)>,
-    mut local_characters: Query<(Entity, &mut Transform, &mut MoveableSimulation), (With<LocalCharacterSimulation>, Without<MoveableVisuals>)>,
+    mut characters: Query<(Entity, &mut Transform, &Character, &mut MoveableSimulation), (Without<LocalCharacter>, Without<MoveableVisuals>)>,
+    mut local_characters: Query<(Entity, &mut Transform, &mut MoveableSimulation), (With<LocalCharacter>, Without<MoveableVisuals>)>,
     transport: Option<Res<NetcodeClientTransport>>,
     fixed_time: Res<Time<Fixed>>,
     mut input_history: ResMut<InputHistory>,
@@ -63,6 +64,7 @@ fn snapshot_system(
                 if is_local {
                     reconcile_local_character(
                         &cfg,
+                        &character_config,
                         &spatial_query,
                         &fixed_time,
                         &mut local_characters,
@@ -90,9 +92,10 @@ fn snapshot_system(
 
 fn reconcile_local_character(
     cfg: &MultiplayerConfig,
+    character_config: &CharacterConfig,
     spatial_query: &SpatialQuery,
     fixed_time: &Time<Fixed>,
-    character_query: &mut Query<(Entity, &mut Transform, &mut MoveableSimulation), (With<LocalCharacterSimulation>, Without<MoveableVisuals>)>,
+    character_query: &mut Query<(Entity, &mut Transform, &mut MoveableSimulation), (With<LocalCharacter>, Without<MoveableVisuals>)>,
     snapshot: &CharacterSnapshotDiff,
     input_history: &mut InputHistory,
     acked_input_id: Option<u32>,
@@ -105,9 +108,11 @@ fn reconcile_local_character(
                 if let Some(acked_input) = acked_input {
                     let correction_distance = position.distance(acked_input.post_move_position);
                     
-                    if correction_distance < cfg.moveable_correction_position_distance_threshold {
+                    if correction_distance < 0.0001 {
+                        //info!("-");
                         return;
                     }
+                    //info!("Correction Distance: {}", correction_distance);
 
                     simulation.is_visually_correcting = true;
 
@@ -135,17 +140,14 @@ fn reconcile_local_character(
                     if input.id <= acked_input_id {
                         continue;
                     }
-
+                    
                     alter_character_velocity(
                         &mut simulation, 
                         input, 
                         fixed_time.delta_secs(), 
-                        PLAYER_CONTROLLER_SPEED, 
-                        PLAYER_CONTROLLER_JUMP_IMPULSE, 
-                        PLAYER_CONTROLLER_GROUND_ACCEL,
-                        PLAYER_CONTROLLER_AIR_ACCEL,
-                        PLAYER_CONTROLLER_GROUND_FRICTION, 
-                        PLAYER_CONTROLLER_AIR_FRICTION,
+                        character_config.speed,
+                        character_config.acceleration,
+                        character_config.friction,
                     );
 
                     move_simulation(
