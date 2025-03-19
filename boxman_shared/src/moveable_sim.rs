@@ -5,6 +5,16 @@ const GROUND_MARGIN: f32 = 0.001;
 
 pub type MaxSlopeAngleDegrees = f32;
 
+pub struct MoveableSimulationPlugin;
+
+impl Plugin for MoveableSimulationPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(FixedUpdate, (
+            simulation_move_system,
+        ));
+    }
+}
+
 pub struct MoveableEntities {
     pub simulation: Entity,
     pub visuals: Option<Entity>,
@@ -30,72 +40,12 @@ pub struct MoveableCorrectionState {
 
 #[derive(Component)]
 pub struct MoveableSimulation {
-    visuals: Option<Entity>,
     pub velocity: Vec3,
     pub last_translation: Vec3,
     pub is_visually_correcting: bool,
     pub last_rotation: Quat,
     pub params: MoveableParams,
     pub grounded: bool,
-}
-
-impl MoveableSimulation {
-    pub fn spawn(
-        commands: &mut Commands,
-        mesh: Option<Handle<Mesh>>,
-        material: Option<Handle<StandardMaterial>>,
-        spawn_position: Vec3,
-        params: MoveableParams,
-    ) -> MoveableEntities {
-        
-        let visuals = if let (Some(mesh), Some(material)) = (mesh, material) {
-            Some(commands.spawn((
-                Mesh3d::from(mesh),
-                MeshMaterial3d::from(material),
-                Transform::from_translation(spawn_position),
-                MoveableVisuals,
-            )).id())
-        } else {
-            None
-        };
-
-        let simulation = commands.spawn((
-            // Collider::capsule(params.collision_radius, params.collision_height),
-            MoveableSimulation {
-                visuals,
-                velocity: Vec3::ZERO,
-                last_translation: spawn_position,
-                last_rotation: Quat::IDENTITY,
-                params,
-                is_visually_correcting: false,
-                grounded: false,
-            },
-            Transform::from_translation(spawn_position),
-        )).id();
-
-        MoveableEntities {
-            simulation,
-            visuals,
-        }
-    }
-
-    pub fn last_rotation(&self) -> Quat {
-        self.last_rotation
-    }
-
-    pub fn visuals(&self) -> Option<Entity> {
-        self.visuals
-    }
-}
-
-pub struct MoveableSimulationPlugin;
-
-impl Plugin for MoveableSimulationPlugin {
-    fn build(&self, app: &mut App) {
-        app.add_systems(FixedUpdate, (
-            simulation_move_system,
-        ));
-    }
 }
 
 fn simulation_move_system(

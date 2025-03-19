@@ -2,14 +2,13 @@ mod moveable_vis;
 mod player;
 mod config;
 mod client;
+mod character;
 
 use avian3d::{prelude::ColliderConstructor, PhysicsPlugins};
 use bevy::prelude::*;
-use bevy_renet::renet::RenetServer;
 use bevy_config_stack::prelude::*;
-use boxman_server::{listen, bots::{spawn_bot, BotIdTracker}};
-use boxman_shared::{moveable_sim::MoveableSimulationPlugin, weapons::{WeaponsListConfig, WeaponsPlugin}};
-use moveable_vis::MoveableVisualsPlugin;
+use boxman_shared::{utils::{ServerIp, ServerPort}, SharedPlugin};
+use character::CharacterPlugin;
 use player::PlayerPlugin;
 use clap::Parser;
 use config::{MultiplayerConfig, ControlsConfig};
@@ -27,12 +26,6 @@ pub struct CommandLineArgs {
     pub port: u16,
 }
 
-#[derive(Resource)]
-pub struct ServerIp(String);
-
-#[derive(Resource)]
-pub struct ServerPort(u16);
-
 fn main() {
     let args = CommandLineArgs::parse();
 
@@ -42,10 +35,9 @@ fn main() {
         PhysicsPlugins::default(),
         ConfigAssetLoaderPlugin::<ControlsConfig>::new("config/controls.ron"),
         ConfigAssetLoaderPlugin::<MultiplayerConfig>::new("config/multiplayer.ron"),
-        ConfigAssetLoaderPlugin::<WeaponsListConfig>::new("config/weapons.ron"),
         PlayerPlugin,
-        MoveableSimulationPlugin,
-        MoveableVisualsPlugin,
+        SharedPlugin,
+        CharacterPlugin,
     ));
 
     app.insert_resource(ServerPort(args.port));
@@ -65,20 +57,13 @@ fn main() {
         startup_system,
     ));
 
-    app.add_plugins((
-        WeaponsPlugin,
-    ));
-
     app.run();
 }
 
 fn startup_system(
-    renet_server: Option<Res<RenetServer>>,
-    server_port: Res<ServerPort>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut commands: Commands,
-    bot_id_tracker: Option<ResMut<BotIdTracker>>,
 ) {
     // Light
     commands.spawn((
@@ -141,20 +126,4 @@ fn startup_system(
         Transform::default()
             .with_translation(Vec3::new(-20.0, 1.0, 0.0)),
     ));
-
-    if renet_server.is_some() {
-        if let Err(e) = listen(&mut commands, server_port.0) {
-            error!("Failed to listen on port {}: {}", server_port.0, e);
-        }
-
-        if let Some(mut bot_id_tracker) = bot_id_tracker {
-            spawn_bot(
-                &mut bot_id_tracker,
-                &mut commands, 
-                &mut meshes, 
-                &mut materials, 
-                Vec3::new(0.0, 2.0, 0.0), 
-            );
-        }
-    }
 }

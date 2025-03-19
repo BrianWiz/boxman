@@ -12,7 +12,7 @@ use bevy_renet::{
     renet::{ConnectionConfig, DefaultChannel, RenetClient},
     RenetClientPlugin,
 };
-use boxman_shared::{moveable_sim::MoveableSimulation, player::{despawn_character, spawn_character, CharacterSimulation, CharacterVisuals}, protocol::{ClientToServerMessage, ServerToClientMessage}, utils::Client};
+use boxman_shared::{prelude::{CharacterDespawnEvent, CharacterSpawnEvent}, protocol::{ClientToServerMessage, ServerToClientMessage}, utils::GameClient};
 
 use crate::{player::InputHistory, ServerIp, ServerPort};
 use snapshot::{SnapshotDiffEvent, SnapshotPlugin};
@@ -26,7 +26,7 @@ impl Plugin for GameClientPlugin {
             NetcodeClientPlugin, 
             SnapshotPlugin
         ));
-        app.insert_resource(Client);
+        app.insert_resource(GameClient);
         app.add_systems(Startup, startup_system);
         app.add_systems(Update, (
             message_receiver_system.run_if(resource_exists::<RenetClient>),
@@ -64,16 +64,11 @@ pub fn connect_to_server(
 }
 
 pub fn message_receiver_system(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut transport: ResMut<NetcodeClientTransport>,
     mut renet_client: ResMut<RenetClient>,
     mut snapshot_diff_events: EventWriter<SnapshotDiffEvent>,
-    mut characters: Query<(Entity, &CharacterSimulation, &MoveableSimulation)>,
+    mut character_spawn_events: EventWriter<CharacterSpawnEvent>,
+    mut character_despawn_events: EventWriter<CharacterDespawnEvent>,
 ) {
-    let my_id = transport.client_id();
-
     while let Some(message) = renet_client.receive_message(DefaultChannel::Unreliable) {
         match bincode::deserialize::<ServerToClientMessage>(&message) {
             Ok(ServerToClientMessage::SnapshotDiff(snapshot_diff)) => {
@@ -93,25 +88,11 @@ pub fn message_receiver_system(
 
     while let Some(message) = renet_client.receive_message(DefaultChannel::ReliableOrdered) {
         match bincode::deserialize::<ServerToClientMessage>(&message) {
-            Ok(ServerToClientMessage::SpawnCharacter { id, position, velocity, grounded }) => {
-                info!("Spawned character: {}", id);
-                spawn_character(
-                    &mut commands, 
-                    position, 
-                    id, 
-                    id == my_id,
-                    Some(&mut meshes), 
-                    Some(&mut materials)
-                );
+            Ok(ServerToClientMessage::SpawnCharacter(character_spawn_event)) => {
+                character_spawn_events.send(character_spawn_event.clone());
             }
-            Ok(ServerToClientMessage::DespawnCharacter { id }) => {
-                for (entity, character_simulation, simulation) in characters.iter_mut() {
-                    if character_simulation.client_id == id {
-                        info!("Despawned character: {}", id);
-                        despawn_character(&mut commands, entity, simulation.visuals());
-                        break;
-                    }
-                }
+            Ok(ServerToClientMessage::DespawnCharacter(character_despawn_event)) => {
+                character_despawn_events.send(character_despawn_event.clone());
             }
             Ok(_) => {
                 error!("Received unknown message from server on reliable channel");

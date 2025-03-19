@@ -5,7 +5,7 @@ use bevy::{prelude::*, utils::hashbrown::HashSet};
 use bevy_renet::netcode::NetcodeClientTransport;
 use boxman_shared::{
     moveable_sim::{move_simulation, MoveableCorrectionState, MoveableSimulation, MoveableVisuals}, 
-    player::{alter_character_velocity, despawn_character, spawn_character, LocalCharacterSimulation, CharacterSimulation, PLAYER_CONTROLLER_AIR_ACCEL, PLAYER_CONTROLLER_AIR_FRICTION, PLAYER_CONTROLLER_GROUND_ACCEL, PLAYER_CONTROLLER_GROUND_FRICTION, PLAYER_CONTROLLER_JUMP_IMPULSE, PLAYER_CONTROLLER_SPEED}, 
+    character::{alter_character_velocity, LocalCharacterSimulation, CharacterSimulation, PLAYER_CONTROLLER_AIR_ACCEL, PLAYER_CONTROLLER_AIR_FRICTION, PLAYER_CONTROLLER_GROUND_ACCEL, PLAYER_CONTROLLER_GROUND_FRICTION, PLAYER_CONTROLLER_JUMP_IMPULSE, PLAYER_CONTROLLER_SPEED}, 
     snapshot::{CharacterSnapshotDiff, SnapshotDiff}
 };
 

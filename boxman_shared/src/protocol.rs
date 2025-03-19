@@ -1,7 +1,7 @@
 use bevy::math::Vec3;
 use serde::{Deserialize, Serialize};
 
-use crate::{player::PlayerInput, snapshot::SnapshotDiff};
+use crate::{character::{PlayerInput, CharacterDespawnEvent, CharacterSpawnEvent}, snapshot::SnapshotDiff};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ServerToClientMessage {
@@ -10,15 +10,8 @@ pub enum ServerToClientMessage {
         name: String,
     },
     SnapshotDiff(SnapshotDiff),
-    SpawnCharacter {
-        id: u64,
-        position: Vec3,
-        velocity: Vec3,
-        grounded: bool,
-    },
-    DespawnCharacter {
-        id: u64,
-    }
+    SpawnCharacter(CharacterSpawnEvent),
+    DespawnCharacter(CharacterDespawnEvent),
 }
 
 #[derive(Debug, Serialize, Deserialize)]

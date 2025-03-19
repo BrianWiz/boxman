@@ -1,9 +1,7 @@
-use std::time::Duration;
-
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::{moveable_sim::{MoveableEntities, MoveableParams, MoveableSimulation}, weapons::{Inventory, Weapon}};
+use crate::moveable_sim::{MoveableParams, MoveableSimulation};
 
 pub const PLAYER_CONTROLLER_SPEED: f32 = 8.0;
 pub const PLAYER_CONTROLLER_JUMP_IMPULSE: f32 = 3.8;
@@ -12,6 +10,72 @@ pub const PLAYER_CONTROLLER_AIR_FRICTION: f32 = 2.0;
 pub const PLAYER_CONTROLLER_GROUND_ACCEL: f32 = 10.0;
 pub const PLAYER_CONTROLLER_AIR_ACCEL: f32 = 2.0;
 pub const PLAYER_CONTROLLER_AIR_SPEED_MULTIPLIER: f32 = 0.7;
+
+pub struct CharacterPlugin;
+
+impl Plugin for CharacterPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_event::<CharacterSpawnEvent>();
+        app.add_event::<CharacterDespawnEvent>();
+        app.add_systems(Update, (
+            spawn_character_system,
+            despawn_character_system,
+        ));
+    }
+}
+
+fn spawn_character_system(
+    mut commands: Commands,
+    mut character_spawn_events: EventReader<CharacterSpawnEvent>,
+) {
+    for event in character_spawn_events.read() {
+        commands.spawn((
+            MoveableSimulation {
+                velocity: Vec3::ZERO,
+                last_translation: event.position,
+                last_rotation: Quat::IDENTITY,
+                is_visually_correcting: false,
+                grounded: false,
+                params: MoveableParams {
+                    gravity: 9.81,
+                    collision_radius: 0.5,
+                    collision_height: 1.0,
+                    max_slope_angle: Some(44.0),
+                },
+            },
+            CharacterSimulation {
+                client_id: event.client_id,
+            },
+            Transform::from_translation(event.position),
+        ));
+    }
+}
+
+fn despawn_character_system(
+    mut commands: Commands,
+    mut character_despawn_events: EventReader<CharacterDespawnEvent>,
+    character_simulation_query: Query<(Entity, &CharacterSimulation)>,
+) {
+    for event in character_despawn_events.read() {
+        for (simulation_entity, character) in character_simulation_query.iter() {
+            if character.client_id == event.client_id {
+                commands.entity(simulation_entity).despawn_recursive();
+            }
+        }
+    }
+}
+
+#[derive(Event, Serialize, Deserialize, Debug, Clone)]
+pub struct CharacterSpawnEvent {
+    pub client_id: u64,
+    pub position: Vec3,
+    pub yaw: f32,
+}
+
+#[derive(Event, Serialize, Deserialize, Debug, Clone)]
+pub struct CharacterDespawnEvent {
+    pub client_id: u64,
+}
 
 #[derive(Component)]
 pub struct LocalCharacterSimulation;
@@ -51,72 +115,6 @@ pub struct PlayerInput {
 
     #[serde(skip)]
     pub post_move_grounded: bool,
-}
-
-pub fn spawn_character(
-    commands: &mut Commands,
-    position: Vec3,
-    client_id: u64,
-    local: bool,
-    meshes: Option<&mut Assets<Mesh>>,
-    materials: Option<&mut Assets<StandardMaterial>>,
-) -> MoveableEntities {
-    let entities = MoveableSimulation::spawn(
-        commands,
-        if let Some(meshes) = meshes {
-            Some(meshes.add(Cuboid::new(1.0, 1.0, 1.0)))
-        } else {
-            None
-        },
-        if let Some(materials) = materials {
-            Some(materials.add(Color::srgb(0.5, 0.1, 0.1)))
-        } else {
-            None
-        },
-        position,
-        MoveableParams {
-            gravity: 9.81,
-            collision_radius: 0.5,
-            collision_height: 1.0,
-            max_slope_angle: Some(44.0),
-        },
-    );
-
-    // Simulation
-    commands.entity(entities.simulation)
-        .insert((
-            CharacterSimulation {
-                client_id: client_id,
-            },
-            Inventory {
-                active_weapon: 0,
-                weapons: vec![
-                    Weapon {
-                        key: 0,
-                        fire_timer: Timer::new(Duration::from_millis(100), TimerMode::Once),
-                        wish_fire: false,
-                    }
-                ],
-            },
-        ));
-
-    if local {
-        commands.entity(entities.simulation)
-            .insert(LocalCharacterSimulation);
-    }
-
-    // Visuals
-    if let Some(visuals) = entities.visuals {
-        commands.entity(visuals)
-            .insert(CharacterVisuals);
-
-        if local {
-            commands.entity(visuals)
-                .insert(LocalCharacterVisuals);
-        }
-    }
-
-    entities
 }
 
 impl MoveableSimulation {
@@ -191,16 +189,5 @@ pub fn alter_character_velocity(
 
     if input.wish_jump && simulation.grounded {
         simulation.velocity.y += jump_impulse;
-    }
-}
-
-pub fn despawn_character(
-    commands: &mut Commands,
-    simulation_entity: Entity,
-    visuals_entity: Option<Entity>,
-) {
-    commands.entity(simulation_entity).despawn_recursive();
-    if let Some(visuals_entity) = visuals_entity {
-        commands.entity(visuals_entity).despawn_recursive();
     }
 }

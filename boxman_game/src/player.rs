@@ -1,5 +1,5 @@
 use bevy::{input::mouse::MouseMotion, prelude::*};
-use boxman_shared::{moveable_sim::MoveableSimulation, player::{alter_character_velocity, LocalCharacterSimulation, LocalCharacterVisuals, PlayerInput, PLAYER_CONTROLLER_AIR_ACCEL, PLAYER_CONTROLLER_AIR_FRICTION, PLAYER_CONTROLLER_GROUND_ACCEL, PLAYER_CONTROLLER_GROUND_FRICTION, PLAYER_CONTROLLER_JUMP_IMPULSE, PLAYER_CONTROLLER_SPEED}, weapons::Inventory};
+use boxman_shared::{moveable_sim::MoveableSimulation, character::{alter_character_velocity, LocalCharacterSimulation, LocalCharacterVisuals, PlayerInput, PLAYER_CONTROLLER_AIR_ACCEL, PLAYER_CONTROLLER_AIR_FRICTION, PLAYER_CONTROLLER_GROUND_ACCEL, PLAYER_CONTROLLER_GROUND_FRICTION, PLAYER_CONTROLLER_JUMP_IMPULSE, PLAYER_CONTROLLER_SPEED}};
 
 use crate::client::snapshot::LastProcessedSnapshotId;
 use crate::config::ControlsConfig;
@@ -41,7 +41,7 @@ fn input_capture_system(
     snapshot_id: Option<ResMut<LastProcessedSnapshotId>>,
     mouse_input: Res<ButtonInput<MouseButton>>,
     keyboard_input: Res<ButtonInput<KeyCode>>,
-    mut player_controller: Query<(Entity, &mut Inventory, &Transform, &MoveableSimulation), With<LocalCharacterSimulation>>,
+    mut player_controller: Query<(Entity, &Transform, &MoveableSimulation), With<LocalCharacterSimulation>>,
 ) {
     // We always send an input to the server regardless of whether we have a player controller or not.
     // So always create an input history entry.
@@ -56,7 +56,7 @@ fn input_capture_system(
             None
         },
         yaw: { 
-            if let Ok((_, _, player_transform, _)) = player_controller {
+            if let Ok((_, player_transform, _)) = player_controller {
                 player_transform.rotation.to_euler(EulerRot::YXZ).0
             } else {
                 0.0
@@ -79,7 +79,7 @@ fn input_capture_system(
             direction.normalize_or_zero()
         },
         wish_jump: {
-            if let Ok((_, _, _, moveable_simulation)) = player_controller {
+            if let Ok(( _, _, moveable_simulation)) = player_controller {
                 keyboard_input.pressed(KeyCode::Space) && moveable_simulation.grounded
             } else {
                 false
@@ -98,13 +98,6 @@ fn input_capture_system(
     // Keep up to a second of input history, because we play these back when receiving a snapshot
     if input_history.inputs.len() > 64 {
         input_history.inputs.remove(0);
-    }
-
-    // handle weapon firing
-    if let Ok((_, mut inventory, _, _)) = player_controller {
-        let active_weapon_key = inventory.active_weapon as usize;
-        let weapon = &mut inventory.weapons[active_weapon_key];
-        weapon.wish_fire = wish_fire;
     }
 }
 

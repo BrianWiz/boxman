@@ -1,12 +1,8 @@
 use bevy::prelude::*;
-use bevy_renet::renet::ServerEvent;
+use bevy_renet::renet::{DefaultChannel, RenetServer, ServerEvent};
 use boxman_shared::{
-    moveable_sim::MoveableSimulation, 
-    player::{alter_character_velocity, despawn_character, spawn_character, CharacterSimulation, PlayerInput, PLAYER_CONTROLLER_AIR_ACCEL, PLAYER_CONTROLLER_AIR_FRICTION, PLAYER_CONTROLLER_GROUND_ACCEL, PLAYER_CONTROLLER_GROUND_FRICTION, PLAYER_CONTROLLER_JUMP_IMPULSE, PLAYER_CONTROLLER_SPEED}, weapons::Inventory
+    character::{alter_character_velocity, CharacterSimulation, PlayerInput, PLAYER_CONTROLLER_AIR_ACCEL, PLAYER_CONTROLLER_AIR_FRICTION, PLAYER_CONTROLLER_GROUND_ACCEL, PLAYER_CONTROLLER_GROUND_FRICTION, PLAYER_CONTROLLER_JUMP_IMPULSE, PLAYER_CONTROLLER_SPEED}, moveable_sim::MoveableSimulation, prelude::{CharacterDespawnEvent, CharacterSpawnEvent, ServerToClientMessage}
 };
-use rand::Rng;
-
-use crate::bots::Bot;
 
 #[derive(Component)]
 pub struct Player {
@@ -25,15 +21,11 @@ pub struct PlayerInputQueue {
 #[derive(Event)]
 pub struct PlayerInputEvent(pub u64, pub PlayerInput);
 
-#[derive(Event)]
-pub struct DeletePlayerControllerEvent(pub u64);
-
 pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<PlayerInputEvent>();
-        app.add_event::<DeletePlayerControllerEvent>();
         app.add_systems(PostUpdate, (
             connection_event_receiver_system, 
             player_input_receiver_system,
@@ -47,11 +39,11 @@ impl Plugin for PlayerPlugin {
 fn connection_event_receiver_system(
     players: Query<(Entity, &Player)>,
     mut commands: Commands,
+    mut renet_server: ResMut<RenetServer>,
     mut server_events: EventReader<ServerEvent>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    player_controllers: Query<(Entity, &MoveableSimulation, &CharacterSimulation)>,
-    mut delete_player_controller_events: EventWriter<DeletePlayerControllerEvent>,
+    mut character_spawn_events: EventWriter<CharacterSpawnEvent>,
+    mut character_despawn_events: EventWriter<CharacterDespawnEvent>,
+    characters: Query<(Entity, &Transform, &CharacterSimulation)>,
 ) {
     for event in server_events.read() {
         match event {
@@ -70,38 +62,74 @@ fn connection_event_receiver_system(
                     }
                 ));
 
-                // spawn a player controller
-                // @todo: support headless mode
-                spawn_character(
-                    &mut commands, 
-                    Vec3::new(0.0, 2.0, 0.0), // position
-                    *client_id, 
-                    false, // is local
-                    Some(&mut meshes), 
-                    Some(&mut materials)
-                );
+                // get every character and tell the new client to spawn it
+                for (_, transform, character_simulation) in characters.iter() {
+                    let message = ServerToClientMessage::SpawnCharacter(CharacterSpawnEvent {
+                        client_id: character_simulation.client_id,
+                        position: transform.translation,
+                        yaw: 0.0,
+                    });
+
+                    match bincode::serialize(&message) {
+                        Ok(serialized) => {
+                            renet_server.send_message(*client_id, DefaultChannel::ReliableOrdered, serialized);
+                        }
+                        Err(e) => {
+                            error!("Error serializing message: {}", e);
+                        }
+                    }
+                }
+
+                // spawn their character
+                let character_spawn_event = CharacterSpawnEvent {
+                    client_id: *client_id,
+                    position: Vec3::new(0.0, 2.0, 0.0),
+                    yaw: 0.0,
+                };
+                character_spawn_events.send(character_spawn_event.clone());
+
+                // tell every client about the new character
+                for client_id in renet_server.clients_id() {
+                    let message = ServerToClientMessage::SpawnCharacter(character_spawn_event.clone());
+
+                    match bincode::serialize(&message) {
+                        Ok(serialized) => {
+                            renet_server.send_message(client_id, DefaultChannel::ReliableOrdered, serialized);
+                        }
+                        Err(e) => {
+                            error!("Error serializing message: {}", e);
+                        }
+                    }
+                }
             }
             ServerEvent::ClientDisconnected { client_id, reason } => {
                 for (entity, player) in players.iter() {
                     if player.client_id == *client_id {
                         info!("Player {} ({}) disconnected: {:?}", client_id, player.name, reason);
-                        
-                        // Remove the player
                         commands.entity(entity).despawn_recursive();
-
-                        // Remove their controller
-                        for (simulation_entity, simulation, player_controller) in player_controllers.iter() {
-                            if player_controller.client_id == *client_id {
-                                despawn_character(&mut commands, simulation_entity, simulation.visuals());
-                                break;
+        
+                        // despawn the character
+                        let character_despawn_event = CharacterDespawnEvent {
+                            client_id: *client_id,
+                        };
+                        character_despawn_events.send(character_despawn_event.clone());
+        
+                        // tell everyone to despawn the character
+                        for client_id in renet_server.clients_id() {
+                            let message = ServerToClientMessage::DespawnCharacter(character_despawn_event.clone());
+        
+                            match bincode::serialize(&message) {
+                                Ok(serialized) => {
+                                    renet_server.send_message(client_id, DefaultChannel::ReliableOrdered, serialized);
+                                }
+                                Err(e) => {
+                                    error!("Error serializing message: {}", e);
+                                }
                             }
                         }
-
-                        // Notify app that this player controller was deleted. 
-                        // Things like the snapshot system will need to know about this.
-                        delete_player_controller_events.send(DeletePlayerControllerEvent(*client_id));
                     }
                 }
+
             }
         }
     }
@@ -144,7 +172,7 @@ fn player_input_receiver_system(
 
 fn player_input_consumer_system(
     mut players: Query<(&mut PlayerInputQueue, &mut Player)>,
-    mut player_controllers: Query<(&mut Inventory, &mut MoveableSimulation, &mut Transform, &CharacterSimulation), Without<Bot>>,
+    mut player_controllers: Query<(&mut MoveableSimulation, &mut Transform, &CharacterSimulation)>,
     fixed_time: Res<Time<Fixed>>,
 ) {
     for (mut input_queue, mut player) in players.iter_mut() {
@@ -165,7 +193,7 @@ fn player_input_consumer_system(
             continue;
         };
 
-        for (mut inventory, mut simulation, mut transform, controller) in player_controllers.iter_mut() {
+        for (mut simulation, mut transform, controller) in player_controllers.iter_mut() {
             if controller.client_id == player.client_id {
                 alter_character_velocity(
                     &mut simulation,
@@ -178,10 +206,6 @@ fn player_input_consumer_system(
                     PLAYER_CONTROLLER_GROUND_FRICTION,
                     PLAYER_CONTROLLER_AIR_FRICTION,
                 );
-
-                let active_weapon_key = inventory.active_weapon as usize;
-                let weapon = &mut inventory.weapons[active_weapon_key];
-                weapon.wish_fire = input.wish_fire;
 
                 if let Some(last_id) = player.newest_processed_input_id {
                     if input.id > last_id {

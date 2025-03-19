@@ -1,9 +1,9 @@
 use bevy::prelude::*;
 use bevy_renet::renet::{DefaultChannel, RenetServer};
-use boxman_shared::{moveable_sim::MoveableSimulation, player::CharacterSimulation, snapshot::{CharacterSnapshot, Snapshot, SnapshotDiff}};
+use boxman_shared::{moveable_sim::MoveableSimulation, character::CharacterSimulation, snapshot::{CharacterSnapshot, Snapshot, SnapshotDiff}};
 use boxman_shared::protocol::ServerToClientMessage;
 
-use crate::player::{DeletePlayerControllerEvent, Player};
+use crate::player::Player;
 
 #[derive(Resource)]
 pub struct SnapshotContainer {
